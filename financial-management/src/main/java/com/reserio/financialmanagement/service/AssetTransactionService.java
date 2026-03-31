@@ -8,9 +8,11 @@ import com.reserio.financialmanagement.repository.AssetTransactionRepository;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -25,15 +27,14 @@ public class AssetTransactionService {
     @Autowired
     private AssetRepository assetRepository;
 
-    @Autowired
-    private AccountBalanceService accountBalanceService;
-
+    @Transactional
     public List<AssetTransactionDTO> getAllTransactions() {
         return assetTransactionRepository.findAllByOrderByTransactionDateDescIdDesc().stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
     }
 
+    @Transactional
     public AssetTransactionDTO createTransaction(AssetTransactionDTO transactionDTO) {
         validateTransaction(transactionDTO);
 
@@ -41,7 +42,7 @@ public class AssetTransactionService {
         String transactionType = transactionDTO.getTransactionType().trim().toUpperCase(Locale.ROOT);
         Date transactionDate = transactionDTO.getTransactionDate() != null ? transactionDTO.getTransactionDate() : new Date();
 
-        Asset asset = assetRepository.findByTicker(normalizedTicker);
+        Asset asset = resolveAssetByTicker(normalizedTicker);
         if ("BUY".equals(transactionType)) {
             asset = applyBuy(asset, transactionDTO, normalizedTicker, transactionDate);
         } else {
@@ -65,9 +66,44 @@ public class AssetTransactionService {
         return convertToDTO(savedTransaction);
     }
 
+    private Asset resolveAssetByTicker(String ticker) {
+        List<Asset> matches = assetRepository.findAllByTickerOrderByIdAsc(ticker);
+        if (matches.isEmpty()) {
+            return null;
+        }
+        if (matches.size() == 1) {
+            return matches.get(0);
+        }
+
+        Asset primary = matches.get(0);
+        List<Asset> duplicates = new ArrayList<>(matches.subList(1, matches.size()));
+
+        double totalQuantity = matches.stream()
+                .map(Asset::getQuantity)
+                .mapToDouble(this::defaultValue)
+                .sum();
+        BigDecimal totalCost = matches.stream()
+                .map(asset -> multiply(asset.getQuantity(), asset.getAvgCost()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        primary.setQuantity(totalQuantity);
+        primary.setAvgCost(totalQuantity <= 0 ? 0D : totalCost.divide(BigDecimal.valueOf(totalQuantity), 8, RoundingMode.HALF_UP).doubleValue());
+
+        Asset latestAsset = matches.get(matches.size() - 1);
+        primary.setName(primary.getName() != null ? primary.getName() : latestAsset.getName());
+        primary.setType(primary.getType() != null ? primary.getType() : latestAsset.getType());
+        primary.setCurrentPrice(latestAsset.getCurrentPrice() != null ? latestAsset.getCurrentPrice() : primary.getCurrentPrice());
+        primary.setLastUpdated(latestAsset.getLastUpdated() != null ? latestAsset.getLastUpdated() : primary.getLastUpdated());
+        primary.setPurchaseDate(primary.getPurchaseDate() != null ? primary.getPurchaseDate() : latestAsset.getPurchaseDate());
+        primary.setNotes(primary.getNotes() != null ? primary.getNotes() : latestAsset.getNotes());
+
+        Asset savedPrimary = assetRepository.save(primary);
+        assetRepository.deleteAll(duplicates);
+        return savedPrimary;
+    }
+
     private Asset applyBuy(Asset asset, AssetTransactionDTO transactionDTO, String ticker, Date transactionDate) {
         BigDecimal transactionAmount = multiply(transactionDTO.getQuantity(), transactionDTO.getPrice());
-        accountBalanceService.debit(transactionAmount);
 
         if (asset == null) {
             asset = new Asset();
@@ -111,9 +147,6 @@ public class AssetTransactionService {
         if (sellQuantity > currentQuantity) {
             throw new IllegalArgumentException("Sell quantity exceeds holding quantity");
         }
-
-        BigDecimal transactionAmount = multiply(transactionDTO.getQuantity(), transactionDTO.getPrice());
-        accountBalanceService.credit(transactionAmount);
 
         double remainingQuantity = currentQuantity - sellQuantity;
         if (remainingQuantity <= 0D) {

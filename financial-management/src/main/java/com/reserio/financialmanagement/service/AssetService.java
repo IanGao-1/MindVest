@@ -6,9 +6,12 @@ import com.reserio.financialmanagement.repository.AssetRepository;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -18,11 +21,9 @@ public class AssetService {
     @Autowired
     private AssetRepository assetRepository;
 
-    @Autowired
-    private AccountBalanceService accountBalanceService;
-
+    @Transactional
     public List<AssetDTO> getAllAssets() {
-        return assetRepository.findAll().stream()
+        return normalizeAssets(assetRepository.findAll()).stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
     }
@@ -34,8 +35,7 @@ public class AssetService {
     }
 
     public AssetDTO createAsset(AssetDTO assetDTO) {
-        accountBalanceService.debit(calculateBuyAmount(assetDTO));
-        Asset existingAsset = assetRepository.findByTicker(assetDTO.getTicker());
+        Asset existingAsset = resolveAssetByTicker(assetDTO.getTicker());
         Asset savedAsset;
 
         if (existingAsset != null) {
@@ -47,6 +47,44 @@ public class AssetService {
         }
 
         return convertToDTO(savedAsset);
+    }
+
+    @Transactional
+    protected Asset resolveAssetByTicker(String ticker) {
+        List<Asset> matches = assetRepository.findAllByTickerOrderByIdAsc(ticker);
+        if (matches.isEmpty()) {
+            return null;
+        }
+        if (matches.size() == 1) {
+            return matches.get(0);
+        }
+
+        Asset primary = matches.get(0);
+        List<Asset> duplicates = new ArrayList<>(matches.subList(1, matches.size()));
+
+        double totalQuantity = matches.stream()
+                .map(Asset::getQuantity)
+                .mapToDouble(this::defaultValue)
+                .sum();
+
+        BigDecimal totalCost = matches.stream()
+                .map(asset -> multiply(asset.getQuantity(), asset.getAvgCost()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        primary.setQuantity(totalQuantity);
+        primary.setAvgCost(totalQuantity <= 0 ? 0D : totalCost.divide(BigDecimal.valueOf(totalQuantity), 8, RoundingMode.HALF_UP).doubleValue());
+
+        Asset latestAsset = matches.get(matches.size() - 1);
+        primary.setName(primary.getName() != null ? primary.getName() : latestAsset.getName());
+        primary.setType(primary.getType() != null ? primary.getType() : latestAsset.getType());
+        primary.setCurrentPrice(latestAsset.getCurrentPrice() != null ? latestAsset.getCurrentPrice() : primary.getCurrentPrice());
+        primary.setLastUpdated(latestAsset.getLastUpdated() != null ? latestAsset.getLastUpdated() : primary.getLastUpdated());
+        primary.setPurchaseDate(primary.getPurchaseDate() != null ? primary.getPurchaseDate() : latestAsset.getPurchaseDate());
+        primary.setNotes(primary.getNotes() != null ? primary.getNotes() : latestAsset.getNotes());
+
+        Asset savedPrimary = assetRepository.save(primary);
+        assetRepository.deleteAll(duplicates);
+        return savedPrimary;
     }
 
     public AssetDTO updateAsset(Long id, AssetDTO assetDTO) {
@@ -63,8 +101,6 @@ public class AssetService {
 
         validateSellQuantity(asset, sellQuantity);
 
-        accountBalanceService.credit(multiply(sellQuantity, asset.getCurrentPrice()));
-
         double remainingQuantity = asset.getQuantity() - sellQuantity;
         if (remainingQuantity > 0) {
             asset.setQuantity(remainingQuantity);
@@ -76,9 +112,25 @@ public class AssetService {
     }
 
     public List<AssetDTO> getAssetsByType(String type) {
-        return assetRepository.findByType(type).stream()
+        return normalizeAssets(assetRepository.findByType(type)).stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
+    }
+
+    private List<Asset> normalizeAssets(List<Asset> assets) {
+        LinkedHashSet<String> tickers = assets.stream()
+                .map(Asset::getTicker)
+                .filter(ticker -> ticker != null && !ticker.trim().isEmpty())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        List<Asset> normalizedAssets = new ArrayList<>();
+        for (String ticker : tickers) {
+            Asset normalized = resolveAssetByTicker(ticker);
+            if (normalized != null && defaultValue(normalized.getQuantity()) > 0) {
+                normalizedAssets.add(normalized);
+            }
+        }
+        return normalizedAssets;
     }
 
     private AssetDTO convertToDTO(Asset asset) {
@@ -101,10 +153,6 @@ public class AssetService {
         Asset asset = new Asset();
         BeanUtils.copyProperties(assetDTO, asset);
         return asset;
-    }
-
-    private BigDecimal calculateBuyAmount(AssetDTO assetDTO) {
-        return multiply(assetDTO.getQuantity(), assetDTO.getAvgCost());
     }
 
     private void mergeAsset(Asset existingAsset, AssetDTO incomingAsset) {
