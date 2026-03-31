@@ -1,6 +1,7 @@
 package com.reserio.financialmanagement.controller;
 
 import com.reserio.financialmanagement.dto.AssetDTO;
+import com.reserio.financialmanagement.dto.SellAssetRequest;
 import com.reserio.financialmanagement.service.AssetService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -47,10 +48,10 @@ public class AssetController {
         return ResponseEntity.ok(updatedAsset);
     }
 
-    @Operation(summary = "Delete asset")
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteAsset(@PathVariable Long id) {
-        assetService.deleteAsset(id);
+    @Operation(summary = "Sell asset by quantity")
+    @PostMapping("/{id}/sell")
+    public ResponseEntity<Void> sellAsset(@PathVariable Long id, @RequestBody SellAssetRequest request) {
+        assetService.sellAsset(id, request.getQuantity());
         return ResponseEntity.noContent().build();
     }
 

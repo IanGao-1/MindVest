@@ -8,7 +8,7 @@ public class AssetDTO {
     private String name;
     private String type;
     private Double quantity;
-    private Double buyPrice;
+    private Double avgCost;
     private Date purchaseDate;
     private Double currentPrice;
     private Date lastUpdated;
@@ -54,12 +54,12 @@ public class AssetDTO {
         this.quantity = quantity;
     }
 
-    public Double getBuyPrice() {
-        return buyPrice;
+    public Double getAvgCost() {
+        return avgCost;
     }
 
-    public void setBuyPrice(Double buyPrice) {
-        this.buyPrice = buyPrice;
+    public void setAvgCost(Double avgCost) {
+        this.avgCost = avgCost;
     }
 
     public Date getPurchaseDate() {
