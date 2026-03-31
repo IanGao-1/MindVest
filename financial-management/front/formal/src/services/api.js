@@ -36,12 +36,15 @@ export function fetchAssets() {
   return request('/assets')
 }
 
-export function fetchPortfolios() {
-  return request('/portfolios')
+export function fetchTransactions() {
+  return request('/transactions')
 }
 
-export function fetchBalance() {
-  return request('/account/balance')
+export function createTransaction(payload) {
+  return request('/transactions', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  })
 }
 
 export function fetchQuote(ticker) {

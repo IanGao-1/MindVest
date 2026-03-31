@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -83,6 +84,16 @@ public class AssetService {
     private AssetDTO convertToDTO(Asset asset) {
         AssetDTO assetDTO = new AssetDTO();
         BeanUtils.copyProperties(asset, assetDTO);
+        BigDecimal costBasis = multiply(asset.getQuantity(), asset.getAvgCost());
+        BigDecimal currentValue = multiply(asset.getQuantity(), asset.getCurrentPrice());
+        BigDecimal unrealizedPnL = currentValue.subtract(costBasis);
+        BigDecimal unrealizedPnLRate = costBasis.compareTo(BigDecimal.ZERO) == 0
+                ? BigDecimal.ZERO
+                : unrealizedPnL.divide(costBasis, 8, RoundingMode.HALF_UP);
+        assetDTO.setCostBasis(costBasis.doubleValue());
+        assetDTO.setCurrentValue(currentValue.doubleValue());
+        assetDTO.setUnrealizedPnL(unrealizedPnL.doubleValue());
+        assetDTO.setUnrealizedPnLRate(unrealizedPnLRate.doubleValue());
         return assetDTO;
     }
 
