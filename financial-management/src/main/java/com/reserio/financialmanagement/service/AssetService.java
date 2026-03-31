@@ -1,0 +1,143 @@
+package com.reserio.financialmanagement.service;
+
+import com.reserio.financialmanagement.dto.AssetDTO;
+import com.reserio.financialmanagement.model.Asset;
+import com.reserio.financialmanagement.repository.AssetRepository;
+import org.springframework.beans.BeanUtils;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.stream.Collectors;
+
+@Service
+public class AssetService {
+
+    @Autowired
+    private AssetRepository assetRepository;
+
+    @Autowired
+    private AccountBalanceService accountBalanceService;
+
+    public List<AssetDTO> getAllAssets() {
+        return assetRepository.findAll().stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+    }
+
+    public AssetDTO getAssetById(Long id) {
+        Asset asset = assetRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Asset not found"));
+        return convertToDTO(asset);
+    }
+
+    public AssetDTO createAsset(AssetDTO assetDTO) {
+        accountBalanceService.debit(calculateBuyAmount(assetDTO));
+        Asset existingAsset = assetRepository.findByTicker(assetDTO.getTicker());
+        Asset savedAsset;
+
+        if (existingAsset != null) {
+            mergeAsset(existingAsset, assetDTO);
+            savedAsset = assetRepository.save(existingAsset);
+        } else {
+            Asset asset = convertToEntity(assetDTO);
+            savedAsset = assetRepository.save(asset);
+        }
+
+        return convertToDTO(savedAsset);
+    }
+
+    public AssetDTO updateAsset(Long id, AssetDTO assetDTO) {
+        Asset asset = assetRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Asset not found"));
+        BeanUtils.copyProperties(assetDTO, asset, "id");
+        Asset updatedAsset = assetRepository.save(asset);
+        return convertToDTO(updatedAsset);
+    }
+
+    public void sellAsset(Long id, Double sellQuantity) {
+        Asset asset = assetRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Asset not found"));
+
+        validateSellQuantity(asset, sellQuantity);
+
+        accountBalanceService.credit(multiply(sellQuantity, asset.getCurrentPrice()));
+
+        double remainingQuantity = asset.getQuantity() - sellQuantity;
+        if (remainingQuantity > 0) {
+            asset.setQuantity(remainingQuantity);
+            assetRepository.save(asset);
+            return;
+        }
+
+        assetRepository.deleteById(id);
+    }
+
+    public List<AssetDTO> getAssetsByType(String type) {
+        return assetRepository.findByType(type).stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+    }
+
+    private AssetDTO convertToDTO(Asset asset) {
+        AssetDTO assetDTO = new AssetDTO();
+        BeanUtils.copyProperties(asset, assetDTO);
+        return assetDTO;
+    }
+
+    private Asset convertToEntity(AssetDTO assetDTO) {
+        Asset asset = new Asset();
+        BeanUtils.copyProperties(assetDTO, asset);
+        return asset;
+    }
+
+    private BigDecimal calculateBuyAmount(AssetDTO assetDTO) {
+        return multiply(assetDTO.getQuantity(), assetDTO.getAvgCost());
+    }
+
+    private void mergeAsset(Asset existingAsset, AssetDTO incomingAsset) {
+        double currentQuantity = defaultValue(existingAsset.getQuantity());
+        double incomingQuantity = defaultValue(incomingAsset.getQuantity());
+        double mergedQuantity = currentQuantity + incomingQuantity;
+
+        if (mergedQuantity <= 0) {
+            throw new IllegalArgumentException("Merged quantity must be greater than 0");
+        }
+
+        BigDecimal currentCost = multiply(existingAsset.getQuantity(), existingAsset.getAvgCost());
+        BigDecimal incomingCost = multiply(incomingAsset.getQuantity(), incomingAsset.getAvgCost());
+        BigDecimal mergedAvgCost = currentCost.add(incomingCost)
+                .divide(BigDecimal.valueOf(mergedQuantity), 8, java.math.RoundingMode.HALF_UP);
+
+        existingAsset.setTicker(incomingAsset.getTicker());
+        existingAsset.setName(incomingAsset.getName());
+        existingAsset.setType(incomingAsset.getType());
+        existingAsset.setQuantity(mergedQuantity);
+        existingAsset.setAvgCost(mergedAvgCost.doubleValue());
+        existingAsset.setCurrentPrice(incomingAsset.getCurrentPrice());
+        existingAsset.setPurchaseDate(incomingAsset.getPurchaseDate() != null ? incomingAsset.getPurchaseDate() : existingAsset.getPurchaseDate());
+        existingAsset.setLastUpdated(incomingAsset.getLastUpdated() != null ? incomingAsset.getLastUpdated() : existingAsset.getLastUpdated());
+        existingAsset.setNotes(incomingAsset.getNotes());
+    }
+
+    private BigDecimal multiply(Double quantity, Double price) {
+        BigDecimal quantityValue = BigDecimal.valueOf(quantity == null ? 0D : quantity);
+        BigDecimal priceValue = BigDecimal.valueOf(price == null ? 0D : price);
+        return quantityValue.multiply(priceValue);
+    }
+
+    private double defaultValue(Double value) {
+        return value == null ? 0D : value;
+    }
+
+    private void validateSellQuantity(Asset asset, Double sellQuantity) {
+        if (sellQuantity == null || sellQuantity <= 0) {
+            throw new IllegalArgumentException("Sell quantity must be greater than 0");
+        }
+
+        if (asset.getQuantity() == null || sellQuantity > asset.getQuantity()) {
+            throw new IllegalArgumentException("Sell quantity exceeds holding quantity");
+        }
+    }
+}
