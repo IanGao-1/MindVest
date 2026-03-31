@@ -40,6 +40,10 @@ export function fetchPortfolios() {
   return request('/portfolios')
 }
 
+export function fetchBalance() {
+  return request('/account/balance')
+}
+
 export function fetchQuote(ticker) {
   return request(`/market-data/yahoo/${encodeURIComponent(ticker)}`)
 }

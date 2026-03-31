@@ -1,6 +1,6 @@
 USE financial_management;
 
-INSERT INTO asset (ticker, name, type, quantity, buy_price, purchase_date, current_price, last_updated, notes) VALUES
+INSERT INTO asset (ticker, name, type, quantity, avg_cost, purchase_date, current_price, last_updated, notes) VALUES
 ('600519.SH', 'Kweichow Moutai', 'STOCK', 20, 1680.00, '2025-01-15 10:00:00', 1768.50, '2026-03-30 09:00:00', 'Leading Chinese consumer staple company'),
 ('000858.SZ', 'Wuliangye Yibin', 'STOCK', 35, 132.50, '2025-02-10 11:30:00', 141.20, '2026-03-30 09:05:00', 'Chinese liquor sector allocation'),
 ('601318.SH', 'Ping An Insurance', 'STOCK', 60, 41.80, '2025-03-05 14:20:00', 46.35, '2026-03-30 09:10:00', 'Chinese financial services holding'),
