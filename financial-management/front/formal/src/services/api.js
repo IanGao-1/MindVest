@@ -65,6 +65,13 @@ export function fetchQuote(ticker) {
   return request(`/market-data/yahoo/${encodeURIComponent(ticker)}`)
 }
 
+export function chatWithAi(payload) {
+  return request('/ai/chat', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  })
+}
+
 export function fetchHistoryJson(ticker) {
   return request(`/market-data/history-json/${encodeURIComponent(ticker)}`)
 }

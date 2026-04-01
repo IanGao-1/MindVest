@@ -20,8 +20,13 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<Map<String, String>> handleResponseStatusException(ResponseStatusException ex) {
-        HttpStatus status = HttpStatus.resolve(ex.getStatus().value());
-        return ResponseEntity.status(status == null ? HttpStatus.INTERNAL_SERVER_ERROR : status)
-                .body(Collections.singletonMap("message", ex.getReason() == null ? "Request failed" : ex.getReason()));
+        return ResponseEntity.status(ex.getStatus())
+                .body(Collections.singletonMap("message", ex.getReason()));
+    }
+
+    @ExceptionHandler(RuntimeException.class)
+    public ResponseEntity<Map<String, String>> handleRuntimeException(RuntimeException ex) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Collections.singletonMap("message", ex.getMessage()));
     }
 }
