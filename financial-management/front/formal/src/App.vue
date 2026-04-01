@@ -396,7 +396,7 @@
           <div class="ai-chat-title">
             <img :src="aiIcon" alt="AI icon">
             <div>
-              <strong>AI Assistant</strong>
+              <strong>Mind Vest</strong>
               <p>Ask about your holdings, quotes, and recent portfolio activity.</p>
             </div>
           </div>
@@ -410,7 +410,12 @@
             :class="['ai-message', `ai-message-${message.role}`]"
           >
             <span class="ai-message-role">{{ message.role === 'user' ? 'You' : 'AI' }}</span>
-            <p>{{ message.content }}</p>
+            <template v-if="message.role === 'assistant'">
+              <div class="ai-message-rich" v-html="formatAiMessage(message.content)"></div>
+            </template>
+            <template v-else>
+              <p>{{ message.content }}</p>
+            </template>
           </article>
         </div>
 
@@ -623,6 +628,67 @@ export default {
       if (container) {
         container.scrollTop = container.scrollHeight
       }
+    },
+    formatAiMessage(content) {
+      const escaped = this.escapeHtml(content || '')
+      const lines = escaped.split(/\r?\n/).map(line => line.trim()).filter(Boolean)
+      if (!lines.length) {
+        return '<p>暂无内容</p>'
+      }
+
+      const htmlParts = []
+      let listItems = []
+
+      const flushList = () => {
+        if (!listItems.length) {
+          return
+        }
+        htmlParts.push(`<ul>${listItems.join('')}</ul>`)
+        listItems = []
+      }
+
+      lines.forEach((line, index) => {
+        if (/^(#{1,6}\s*)/.test(line)) {
+          flushList()
+          htmlParts.push(`<h4>${line.replace(/^(#{1,6}\s*)/, '')}</h4>`)
+          return
+        }
+
+        if (/^(\d+\.\s+|[一二三四五六七八九十]+、)/.test(line)) {
+          flushList()
+          htmlParts.push(`<h4>${line}</h4>`)
+          return
+        }
+
+        if (/^[-*•]\s+/.test(line)) {
+          listItems.push(`<li>${line.replace(/^[-*•]\s+/, '')}</li>`)
+          return
+        }
+
+        if (line.includes('：') && line.length <= 24) {
+          flushList()
+          htmlParts.push(`<h5>${line}</h5>`)
+          return
+        }
+
+        flushList()
+        if (index === 0 && lines.length > 1 && line.length <= 28) {
+          htmlParts.push(`<h4>${line}</h4>`)
+        } else {
+          htmlParts.push(`<p>${line}</p>`)
+        }
+      })
+
+      flushList()
+      return htmlParts.join('')
+    },
+    escapeHtml(content) {
+      return String(content || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
     },
     async loadDashboard() {
       this.loading = true
@@ -1854,9 +1920,9 @@ td {
 .ai-chat-panel {
   position: fixed;
   right: 28px;
-  bottom: 118px;
-  width: min(420px, calc(100vw - 32px));
-  max-height: min(72vh, 760px);
+  top: 24px;
+  bottom: 108px;
+  width: min(500px, calc(100vw - 32px));
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -1911,8 +1977,8 @@ td {
 }
 
 .ai-chat-messages {
-  min-height: 220px;
-  max-height: 380px;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -1921,9 +1987,9 @@ td {
 }
 
 .ai-message {
-  max-width: 88%;
-  padding: 14px 16px;
-  border-radius: 20px;
+  max-width: 92%;
+  padding: 16px 18px;
+  border-radius: 22px;
   line-height: 1.6;
   white-space: pre-wrap;
 }
@@ -1943,12 +2009,61 @@ td {
   align-self: flex-start;
   background: #fff8f2;
   border: 1px solid rgba(219, 63, 22, 0.08);
+  box-shadow: 0 10px 24px rgba(55, 37, 23, 0.06);
 }
 
 .ai-message-user {
   align-self: flex-end;
   background: rgba(219, 63, 22, 0.12);
   border: 1px solid rgba(219, 63, 22, 0.14);
+}
+
+.ai-message-rich {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ai-message-rich h4,
+.ai-message-rich h5,
+.ai-message-rich p,
+.ai-message-rich ul {
+  margin: 0;
+}
+
+.ai-message-rich h4 {
+  font-size: 20px;
+  line-height: 1.45;
+  color: #9f2f15;
+  font-weight: 700;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(219, 63, 22, 0.1);
+}
+
+.ai-message-rich h5 {
+  font-size: 16px;
+  line-height: 1.45;
+  color: #b34b2c;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.ai-message-rich p {
+  font-size: 14px;
+  line-height: 1.8;
+  color: #2d231d;
+}
+
+.ai-message-rich ul {
+  padding-left: 18px;
+  display: grid;
+  gap: 8px;
+}
+
+.ai-message-rich li {
+  font-size: 14px;
+  line-height: 1.7;
+  color: #2d231d;
 }
 
 .ai-chat-form {
@@ -2053,9 +2168,9 @@ td {
 
   .ai-chat-panel {
     right: 16px;
-    bottom: 92px;
+    top: 16px;
+    bottom: 88px;
     width: calc(100vw - 32px);
-    max-height: 76vh;
   }
 }
 </style>
