@@ -36,12 +36,29 @@ export function fetchAssets() {
   return request('/assets')
 }
 
-export function fetchPortfolios() {
-  return request('/portfolios')
+export function fetchTransactions() {
+  return request('/transactions')
 }
 
-export function fetchBalance() {
-  return request('/account/balance')
+export function createTransaction(payload) {
+  return request('/transactions', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  })
+}
+
+export function resetSampleData() {
+  return request('/transactions/reset-sample', {
+    method: 'POST'
+  })
+}
+
+export function fetchHoldingsHistory() {
+  return request('/market-data/holdings-history')
+}
+
+export function fetchPortfolioHistory() {
+  return request('/market-data/portfolio-history')
 }
 
 export function fetchQuote(ticker) {

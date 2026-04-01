@@ -13,6 +13,10 @@ public class AssetDTO {
     private Double currentPrice;
     private Date lastUpdated;
     private String notes;
+    private Double costBasis;
+    private Double currentValue;
+    private Double unrealizedPnL;
+    private Double unrealizedPnLRate;
 
     public Long getId() {
         return id;
@@ -92,5 +96,37 @@ public class AssetDTO {
 
     public void setNotes(String notes) {
         this.notes = notes;
+    }
+
+    public Double getCostBasis() {
+        return costBasis;
+    }
+
+    public void setCostBasis(Double costBasis) {
+        this.costBasis = costBasis;
+    }
+
+    public Double getCurrentValue() {
+        return currentValue;
+    }
+
+    public void setCurrentValue(Double currentValue) {
+        this.currentValue = currentValue;
+    }
+
+    public Double getUnrealizedPnL() {
+        return unrealizedPnL;
+    }
+
+    public void setUnrealizedPnL(Double unrealizedPnL) {
+        this.unrealizedPnL = unrealizedPnL;
+    }
+
+    public Double getUnrealizedPnLRate() {
+        return unrealizedPnLRate;
+    }
+
+    public void setUnrealizedPnLRate(Double unrealizedPnLRate) {
+        this.unrealizedPnLRate = unrealizedPnLRate;
     }
 }

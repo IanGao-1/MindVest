@@ -9,5 +9,5 @@ import java.util.List;
 @Repository
 public interface AssetRepository extends JpaRepository<Asset, Long> {
     List<Asset> findByType(String type);
-    Asset findByTicker(String ticker);
+    List<Asset> findAllByTickerOrderByIdAsc(String ticker);
 }

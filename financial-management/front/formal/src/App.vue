@@ -3,15 +3,20 @@
     <section class="hero">
       <div>
         <p class="eyebrow">Financial Management Dashboard</p>
-        <h1>Assets, Portfolios and Market Snapshot</h1>
+        <h1>Assets, Transactions and Market Snapshot</h1>
         <p class="hero-copy">
-          The dashboard connects to the Spring Boot backend and displays assets,
-          portfolios, cash balance, and live quote data with ECharts.
+          Asset now represents your current holdings. You can manually add buy and
+          sell transactions below, and the backend will automatically update your holdings.
         </p>
       </div>
-      <button class="refresh-button" :disabled="loading" @click="loadDashboard">
-        {{ loading ? 'Loading...' : 'Refresh' }}
-      </button>
+      <div class="hero-actions">
+        <button class="ghost-button hero-button" :disabled="resettingSampleData || loading" @click="handleResetSampleData">
+          {{ resettingSampleData ? 'Resetting...' : 'Reset Sample Data' }}
+        </button>
+        <button class="refresh-button hero-button" :disabled="loading" @click="loadDashboard">
+          {{ loading ? 'Loading...' : 'Refresh' }}
+        </button>
+      </div>
     </section>
 
     <section v-if="error" class="error-banner">
@@ -19,25 +24,37 @@
     </section>
 
     <section class="summary-grid">
-      <article class="summary-card">
-        <span class="summary-label">balance</span>
-        <strong>{{ formatCurrency(balance) }}</strong>
-        <small>Account cash balance</small>
-      </article>
       <article class="summary-card accent-card">
         <span class="summary-label">assets</span>
         <strong>{{ assets.length }}</strong>
-        <small>Total assets currently tracked</small>
+        <small>Current holdings tracked in the system</small>
       </article>
       <article class="summary-card">
-        <span class="summary-label">portfolios</span>
-        <strong>{{ portfolios.length }}</strong>
-        <small>Portfolio count</small>
+        <span class="summary-label">cost basis</span>
+        <strong>{{ formatCurrency(totalCostBasis) }}</strong>
+        <small>Total position cost across all holdings</small>
       </article>
       <article class="summary-card">
         <span class="summary-label">market value</span>
         <strong>{{ formatCurrency(totalMarketValue) }}</strong>
         <small>Estimated by current price × quantity</small>
+      </article>
+      <article class="summary-card">
+        <span class="summary-label">p/l</span>
+        <strong :class="pnlClass">{{ formatCurrency(totalPnL) }}</strong>
+        <small>Unrealized income or loss on current holdings</small>
+      </article>
+    </section>
+
+    <section class="performance-grid">
+      <article class="panel">
+        <div class="panel-heading">
+          <div>
+            <p class="panel-kicker">performance</p>
+            <h2>Total Holdings P/L Trend</h2>
+          </div>
+        </div>
+        <div ref="portfolioPnlChart" class="chart chart-medium"></div>
       </article>
     </section>
 
@@ -46,7 +63,7 @@
         <div class="panel-heading">
           <div>
             <p class="panel-kicker">quote</p>
-            <h2>Yahoo Finance / Fallback</h2>
+            <h2>Finnhub / Historical Fallback</h2>
           </div>
         </div>
 
@@ -80,6 +97,7 @@
             <strong>{{ quote.latestTimestamp || 'realtime' }}</strong>
           </div>
         </div>
+
         <div ref="quoteChart" class="chart chart-medium"></div>
       </article>
 
@@ -92,15 +110,27 @@
         </div>
         <div ref="typeChart" class="chart"></div>
       </article>
+    </section>
 
+    <section class="analytics-grid">
       <article class="panel">
         <div class="panel-heading">
           <div>
             <p class="panel-kicker">portfolio</p>
-            <h2>Portfolio Value Ranking</h2>
+            <h2>Portfolio Value History</h2>
           </div>
         </div>
-        <div ref="portfolioChart" class="chart"></div>
+        <div ref="portfolioHistoryChart" class="chart chart-medium"></div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-heading">
+          <div>
+            <p class="panel-kicker">holdings</p>
+            <h2>Holdings Value History</h2>
+          </div>
+        </div>
+        <div ref="holdingsHistoryChart" class="chart chart-medium"></div>
       </article>
     </section>
 
@@ -109,7 +139,7 @@
         <div class="panel-heading">
           <div>
             <p class="panel-kicker">assets</p>
-            <h2>Assets</h2>
+            <h2>Current Holdings</h2>
           </div>
         </div>
         <div class="table-wrap">
@@ -122,8 +152,10 @@
                 <th>Quantity</th>
                 <th>Avg Cost</th>
                 <th>Current Price</th>
-                <th>Market Value</th>
-                <th>Action</th>
+                <th>Cost Basis</th>
+                <th>Current Value</th>
+                <th>P/L</th>
+                <th>Trend</th>
               </tr>
             </thead>
             <tbody>
@@ -134,178 +166,217 @@
                 <td>{{ formatNumber(asset.quantity) }}</td>
                 <td>{{ formatCurrency(asset.avgCost) }}</td>
                 <td>{{ formatCurrency(asset.currentPrice) }}</td>
-                <td>{{ formatCurrency(assetValue(asset)) }}</td>
-                <td class="action-cell">
-                  <button class="action-button buy-btn" @click="openBuyModal(asset)">Buy</button>
-                  <button class="sell-btn" @click="openSellModal(asset)">Sell</button>
+                <td>{{ formatCurrency(asset.costBasis) }}</td>
+                <td>{{ formatCurrency(asset.currentValue) }}</td>
+                <td :class="valueClass(asset.unrealizedPnL)">
+                  {{ formatCurrency(asset.unrealizedPnL) }}
+                  <span class="rate-copy">({{ formatPercent(asset.unrealizedPnLRate) }})</span>
+                </td>
+                <td class="trend-cell">
+                  <svg
+                    v-if="getHoldingTrendSeries(asset.ticker).length"
+                    class="sparkline"
+                    viewBox="0 0 120 36"
+                    preserveAspectRatio="none"
+                  >
+                    <path
+                      :d="sparklinePath(getHoldingTrendSeries(asset.ticker), 120, 36)"
+                      :class="['sparkline-path', valueClass(getLatestHoldingPnl(asset.ticker))]"
+                    />
+                  </svg>
+                  <span v-else class="trend-empty">--</span>
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
       </article>
-
-      <article class="panel">
-        <div class="panel-heading">
-          <div>
-            <p class="panel-kicker">portfolios</p>
-            <h2>Portfolios</h2>
-          </div>
-        </div>
-        <div class="portfolio-list">
-          <div v-for="portfolio in portfolios" :key="portfolio.id" class="portfolio-item">
-            <div class="portfolio-row">
-              <strong>{{ portfolio.name }}</strong>
-              <span>{{ formatCurrency(portfolio.totalValue) }}</span>
-            </div>
-            <p>{{ portfolio.description || 'No description' }}</p>
-            <div class="portfolio-meta">
-              <span>{{ portfolio.assetCount || 0 }} assets</span>
-              <span>{{ formatDate(portfolio.createdAt) }}</span>
-            </div>
-          </div>
-        </div>
-      </article>
     </section>
 
-    <div v-if="showBuyModal" class="modal" @click.self="closeBuyModal">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3>Buy Asset</h3>
-          <button class="close-btn" @click="closeBuyModal">x</button>
+    <section class="panel full-width-panel">
+      <div class="panel-heading">
+        <div>
+          <p class="panel-kicker">transactions</p>
+          <h2>Add Transaction</h2>
         </div>
-        <form class="asset-form" @submit.prevent="submitBuy">
-          <div class="form-group">
-            <label>Ticker</label>
-            <input :value="buyForm.ticker" readonly>
-          </div>
-          <div class="form-group">
-            <label>Name</label>
-            <input :value="buyForm.name" readonly>
-          </div>
-          <div class="form-group">
-            <label>Type</label>
-            <input :value="buyForm.type" readonly>
-          </div>
-          <div class="form-group">
-            <label>Quantity</label>
-            <input v-model.number="buyForm.quantity" type="number" min="0.01" step="0.01" required>
-          </div>
-          <div class="form-group">
-            <label>Current Price</label>
-            <input :value="formatCurrency(buyForm.currentPrice)" readonly>
-          </div>
-          <div class="modal-footer">
-            <button type="button" @click="closeBuyModal">Cancel</button>
-            <button type="submit" :disabled="submitting">
-              {{ submitting ? 'Submitting...' : 'Confirm Buy' }}
-            </button>
-          </div>
-        </form>
       </div>
-    </div>
 
-    <div v-if="showSellModal" class="modal" @click.self="closeSellModal">
-      <div class="modal-content small-modal">
-        <div class="modal-header">
-          <h3>Confirm Sell</h3>
-          <button class="close-btn" @click="closeSellModal">x</button>
-        </div>
-        <form class="asset-form" @submit.prevent="submitSell">
-          <div class="form-group">
-            <label>Ticker</label>
-            <input :value="currentAsset?.ticker || ''" readonly>
-          </div>
-          <div class="form-group">
-            <label>Holding Quantity</label>
-            <input :value="formatNumber(currentAsset?.quantity)" readonly>
-          </div>
-          <div class="form-group">
-            <label>Sell Price</label>
-            <input :value="formatCurrency(currentAsset?.currentPrice)" readonly>
-          </div>
-          <div class="form-group">
-            <label>Sell Quantity</label>
+      <form class="transaction-form" @submit.prevent="submitTransaction">
+        <label>
+          <span>Type</span>
+          <select v-model="transactionForm.transactionType">
+            <option value="BUY">BUY</option>
+            <option value="SELL">SELL</option>
+          </select>
+        </label>
+        <label>
+          <span>Ticker</span>
+          <input
+            v-model.trim="transactionForm.ticker"
+            type="text"
+            required
+            placeholder="AAPL"
+            @input="applyTickerDefaults"
+          >
+        </label>
+        <label>
+          <span>Name</span>
+          <input v-model.trim="transactionForm.assetName" type="text" placeholder="Apple Inc.">
+        </label>
+        <label>
+          <span>Type</span>
+          <input v-model.trim="transactionForm.assetType" type="text" placeholder="STOCK">
+        </label>
+        <label>
+          <span>Quantity</span>
+          <input v-model.number="transactionForm.quantity" type="number" min="0.01" step="0.01" required>
+        </label>
+        <label>
+          <span>Price</span>
+          <input v-model.number="transactionForm.price" type="number" min="0.01" step="0.01" required>
+        </label>
+        <label>
+          <span>Current Price</span>
+          <input v-model.number="transactionForm.currentPrice" type="number" min="0.01" step="0.01" placeholder="Optional">
+        </label>
+        <label>
+          <span>Date</span>
+          <div class="picker-row">
             <input
-              v-model.number="sellQuantity"
-              type="number"
-              min="0.01"
-              step="0.01"
-              :max="currentAsset?.quantity || undefined"
-              required
+              ref="transactionDateInput"
+              v-model="transactionForm.transactionDate"
+              type="datetime-local"
+              step="60"
+              @focus="openDatePicker"
+              @click="openDatePicker"
             >
+            <button type="button" class="picker-button" @click="openDatePicker">Pick</button>
           </div>
-          <div class="modal-footer">
-            <button type="button" @click="closeSellModal">Cancel</button>
-            <button class="sell-submit" type="submit" :disabled="submitting">
-              {{ submitting ? 'Selling...' : 'Confirm Sell' }}
-            </button>
-          </div>
-        </form>
+        </label>
+        <label class="form-span-2">
+          <span>Notes</span>
+          <textarea v-model.trim="transactionForm.notes" rows="3" placeholder="Optional notes"></textarea>
+        </label>
+
+        <div class="form-actions form-span-2">
+          <button type="button" class="ghost-button" @click="resetTransactionForm">Reset</button>
+          <button type="submit" :disabled="submittingTransaction">
+            {{ submittingTransaction ? 'Saving...' : 'Save Transaction' }}
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel">
+      <div class="panel-heading">
+        <div>
+          <p class="panel-kicker">transactions</p>
+          <h2>Transaction History</h2>
+        </div>
       </div>
-    </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Type</th>
+              <th>Ticker</th>
+              <th>Name</th>
+              <th>Quantity</th>
+              <th>Price</th>
+              <th>Total</th>
+              <th>Remaining</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="transaction in transactions" :key="transaction.id">
+              <td>{{ formatDateTime(transaction.transactionDate) }}</td>
+              <td :class="valueClass(transaction.transactionType === 'BUY' ? 1 : -1)">
+                {{ transaction.transactionType }}
+              </td>
+              <td>{{ transaction.ticker }}</td>
+              <td>{{ transaction.assetName || '--' }}</td>
+              <td>{{ formatNumber(transaction.quantity) }}</td>
+              <td>{{ formatCurrency(transaction.price) }}</td>
+              <td>{{ formatCurrency(transaction.totalAmount) }}</td>
+              <td>{{ formatNumber(transaction.remainingQuantity) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
   </div>
 </template>
 
 <script>
 import * as echarts from 'echarts'
-import { fetchAssets, fetchBalance, fetchPortfolios, fetchQuote } from './services/api'
+import {
+  createTransaction,
+  fetchAssets,
+  fetchHoldingsHistory,
+  fetchPortfolioHistory,
+  fetchQuote,
+  fetchTransactions,
+  resetSampleData
+} from './services/api'
 
-const createAsset = async (data) => {
-  const res = await fetch('/api/assets', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data)
-  })
-  if (!res.ok) throw new Error('Buy failed')
-  return res.json()
-}
-
-const sellAsset = async (id, quantity) => {
-  const res = await fetch(`/api/assets/${id}/sell`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ quantity })
-  })
-  if (!res.ok) throw new Error('Sell failed')
-  if (res.status === 204) return null
-  return res.json()
-}
-
-const createEmptyBuyForm = () => ({
+const createEmptyTransactionForm = () => ({
+  transactionType: 'BUY',
   ticker: '',
-  name: '',
-  type: '',
-  quantity: 0,
-  avgCost: 0,
-  currentPrice: 0
+  assetName: '',
+  assetType: '',
+  quantity: null,
+  price: null,
+  currentPrice: null,
+  transactionDate: '',
+  notes: ''
 })
+
+const TICKER_PRESETS = {
+  AAPL: { assetName: 'Apple Inc.', assetType: 'STOCK' },
+  TSLA: { assetName: 'Tesla Inc.', assetType: 'STOCK' },
+  MSFT: { assetName: 'Microsoft Corp.', assetType: 'STOCK' },
+  AMZN: { assetName: 'Amazon.com Inc.', assetType: 'STOCK' },
+  META: { assetName: 'Meta Platforms Inc.', assetType: 'STOCK' },
+  NVDA: { assetName: 'NVIDIA Corp.', assetType: 'STOCK' },
+  C: { assetName: 'Citigroup Inc.', assetType: 'STOCK' }
+}
 
 export default {
   name: 'App',
   data() {
     return {
       assets: [],
-      balance: 0,
-      portfolios: [],
+      transactions: [],
+      holdingsHistory: [],
+      portfolioHistory: [],
       quote: null,
       tickerInput: 'TSLA',
       loading: false,
       quoteLoading: false,
+      submittingTransaction: false,
+      resettingSampleData: false,
+      transactionQuoteLoading: false,
       error: '',
       quoteError: '',
-      charts: { type: null, portfolio: null, quote: null },
-      showBuyModal: false,
-      showSellModal: false,
-      currentAsset: null,
-      sellQuantity: 0,
-      submitting: false,
-      buyForm: createEmptyBuyForm()
+      transactionForm: createEmptyTransactionForm(),
+      charts: { type: null, quote: null, portfolioPnl: null, portfolioHistory: null, holdingsHistory: null },
+      transactionLookupToken: 0
     }
   },
   computed: {
+    totalCostBasis() {
+      return this.assets.reduce((sum, asset) => sum + Number(asset.costBasis || 0), 0)
+    },
     totalMarketValue() {
-      return this.assets.reduce((sum, asset) => sum + this.assetValue(asset), 0)
+      return this.assets.reduce((sum, asset) => sum + Number(asset.currentValue || 0), 0)
+    },
+    totalPnL() {
+      return this.assets.reduce((sum, asset) => sum + Number(asset.unrealizedPnL || 0), 0)
+    },
+    pnlClass() {
+      return this.valueClass(this.totalPnL)
     },
     quoteTrendClass() {
       return this.quote?.change >= 0 ? 'text-rise' : 'text-fall'
@@ -317,185 +388,401 @@ export default {
   },
   beforeDestroy() {
     window.removeEventListener('resize', this.handleResize)
-    Object.values(this.charts).forEach(c => c?.dispose())
+    Object.values(this.charts).forEach(chart => chart?.dispose())
   },
   methods: {
     async loadDashboard() {
       this.loading = true
       this.error = ''
       try {
-        await Promise.all([this.refreshAssets(), this.refreshPortfolios()])
+        const [assetsResult, transactionsResult, holdingsHistoryResult, portfolioHistoryResult] = await Promise.allSettled([
+          fetchAssets(),
+          fetchTransactions(),
+          fetchHoldingsHistory(),
+          fetchPortfolioHistory()
+        ])
+
+        if (assetsResult.status === 'rejected') {
+          throw assetsResult.reason
+        }
+        if (transactionsResult.status === 'rejected') {
+          throw transactionsResult.reason
+        }
+
+        this.assets = Array.isArray(assetsResult.value) ? assetsResult.value : []
+        this.transactions = Array.isArray(transactionsResult.value) ? transactionsResult.value : []
+        this.holdingsHistory = holdingsHistoryResult.status === 'fulfilled' && Array.isArray(holdingsHistoryResult.value)
+          ? holdingsHistoryResult.value
+          : []
+        this.portfolioHistory = portfolioHistoryResult.status === 'fulfilled' && Array.isArray(portfolioHistoryResult.value)
+          ? portfolioHistoryResult.value
+          : []
+
         this.$nextTick(() => {
           this.renderTypeChart()
-          this.renderPortfolioChart()
+          this.renderPortfolioPnlChart()
+          this.renderPortfolioHistoryChart()
+          this.renderHoldingsHistoryChart()
         })
-        if (!this.quote) {
-          this.searchQuote()
+
+        if (holdingsHistoryResult.status === 'rejected' || portfolioHistoryResult.status === 'rejected') {
+          this.error = 'Historical charts are temporarily unavailable, but holdings and transactions loaded successfully.'
         }
-      } catch (e) {
-        this.error = `Load failed: ${e.message}`
+
+        if (!this.quote) {
+          await this.searchQuote()
+        }
+      } catch (error) {
+        this.error = `Load failed: ${error.message || 'Unknown error'}`
       } finally {
         this.loading = false
       }
     },
     async searchQuote() {
-      if (!this.tickerInput) return
+      if (!this.tickerInput) {
+        return
+      }
       this.quoteLoading = true
       this.quoteError = ''
       try {
         this.quote = await fetchQuote(this.tickerInput)
         this.$nextTick(() => this.renderQuoteChart())
-      } catch (e) {
-        this.quoteError = `Quote failed: ${e.message}`
+      } catch (error) {
+        this.quoteError = `Quote failed: ${error.message || 'Unknown error'}`
       } finally {
         this.quoteLoading = false
       }
     },
-    assetValue(asset) {
-      return Number(asset.currentPrice || 0) * Number(asset.quantity || 0)
+    async submitTransaction() {
+      this.submittingTransaction = true
+      this.error = ''
+      try {
+        const payload = {
+          ...this.transactionForm,
+          ticker: this.transactionForm.ticker?.trim(),
+          assetName: this.transactionForm.assetName?.trim() || null,
+          assetType: this.transactionForm.assetType?.trim() || null,
+          transactionDate: this.transactionForm.transactionDate
+            ? new Date(this.transactionForm.transactionDate).toISOString()
+            : null,
+          notes: this.transactionForm.notes?.trim() || null
+        }
+        await createTransaction(payload)
+        this.resetTransactionForm()
+        await this.loadDashboard()
+      } catch (error) {
+        this.error = `Transaction failed: ${error.message || 'Unknown error'}`
+      } finally {
+        this.submittingTransaction = false
+      }
     },
-    async refreshAssets() {
-      const [assets, balanceResponse] = await Promise.all([
-        fetchAssets(),
-        fetchBalance()
-      ])
-      this.assets = Array.isArray(assets) ? assets : []
-      this.balance = Number(balanceResponse?.balance || 0)
+    async handleResetSampleData() {
+      this.resettingSampleData = true
+      this.error = ''
+      try {
+        await resetSampleData()
+        this.quote = null
+        await this.loadDashboard()
+      } catch (error) {
+        this.error = `Reset failed: ${error.message || 'Unknown error'}`
+      } finally {
+        this.resettingSampleData = false
+      }
     },
-    async refreshPortfolios() {
-      const portfolios = await fetchPortfolios()
-      this.portfolios = Array.isArray(portfolios) ? portfolios : []
+    applyTickerDefaults() {
+      const ticker = this.transactionForm.ticker?.trim()?.toUpperCase()
+      if (!ticker) {
+        return
+      }
+      this.transactionForm.ticker = ticker
+      const preset = TICKER_PRESETS[ticker]
+      if (!preset) {
+        return
+      }
+      if (!this.transactionForm.assetName) {
+        this.transactionForm.assetName = preset.assetName
+      }
+      if (!this.transactionForm.assetType) {
+        this.transactionForm.assetType = preset.assetType
+      }
+      this.lookupTransactionCurrentPrice(ticker)
     },
-    formatCurrency(v) {
-      return v == null ? '--' : new Intl.NumberFormat('zh-CN', {
+    async lookupTransactionCurrentPrice(ticker) {
+      const normalizedTicker = ticker?.trim()?.toUpperCase()
+      if (!normalizedTicker) {
+        return
+      }
+
+      const lookupToken = ++this.transactionLookupToken
+      this.transactionQuoteLoading = true
+      try {
+        const quote = await fetchQuote(normalizedTicker)
+        if (lookupToken !== this.transactionLookupToken || this.transactionForm.ticker !== normalizedTicker) {
+          return
+        }
+        if (quote?.price != null) {
+          this.transactionForm.currentPrice = Number(quote.price)
+        }
+        if (!this.transactionForm.assetName && quote?.name) {
+          this.transactionForm.assetName = quote.name
+        }
+      } catch (error) {
+        // Keep the form usable even if quote lookup fails.
+      } finally {
+        if (lookupToken === this.transactionLookupToken) {
+          this.transactionQuoteLoading = false
+        }
+      }
+    },
+    openDatePicker() {
+      const input = this.$refs.transactionDateInput
+      if (input && typeof input.showPicker === 'function') {
+        input.showPicker()
+      }
+    },
+    resetTransactionForm() {
+      this.transactionLookupToken += 1
+      this.transactionForm = createEmptyTransactionForm()
+    },
+    formatCurrency(value) {
+      if (value == null || Number.isNaN(Number(value))) {
+        return '--'
+      }
+      return new Intl.NumberFormat('zh-CN', {
         style: 'currency',
-        currency: 'USD'
-      }).format(v)
+        currency: 'USD',
+        maximumFractionDigits: 2
+      }).format(Number(value))
     },
-    formatNumber(v) {
-      return v == null ? '--' : Number(v).toFixed(2)
+    formatCompactCurrency(value) {
+      if (value == null || Number.isNaN(Number(value))) {
+        return '--'
+      }
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        notation: 'compact',
+        maximumFractionDigits: 1
+      }).format(Number(value))
     },
-    formatSigned(v) {
-      if (v == null || Number.isNaN(Number(v))) return '--'
-      return Number(v) >= 0 ? `+${Number(v).toFixed(2)}` : Number(v).toFixed(2)
+    formatNumber(value) {
+      if (value == null || Number.isNaN(Number(value))) {
+        return '--'
+      }
+      return Number(value).toLocaleString('zh-CN', { maximumFractionDigits: 4 })
     },
-    formatDate(v) {
-      return v ? new Date(v).toLocaleDateString() : '--'
+    formatPercent(value) {
+      if (value == null || Number.isNaN(Number(value))) {
+        return '--'
+      }
+      return `${(Number(value) * 100).toFixed(2)}%`
+    },
+    formatSigned(value) {
+      if (value == null || Number.isNaN(Number(value))) {
+        return '--'
+      }
+      const numeric = Number(value)
+      return `${numeric >= 0 ? '+' : ''}${numeric.toFixed(2)}`
+    },
+    formatDateTime(value) {
+      if (!value) {
+        return '--'
+      }
+      return new Date(value).toLocaleString('zh-CN')
+    },
+    valueClass(value) {
+      return Number(value || 0) >= 0 ? 'text-rise' : 'text-fall'
     },
     getChartInst(key, el) {
-      if (!this.charts[key] && el) this.charts[key] = echarts.init(el)
+      if (!this.charts[key] && el) {
+        this.charts[key] = echarts.init(el)
+      }
       return this.charts[key]
     },
     renderTypeChart() {
-      const c = this.getChartInst('type', this.$refs.typeChart)
-      if (!c) return
-      const group = {}
-      this.assets.forEach((a) => {
-        group[a.type] = (group[a.type] || 0) + this.assetValue(a)
+      const chart = this.getChartInst('type', this.$refs.typeChart)
+      if (!chart) {
+        return
+      }
+
+      const grouped = {}
+      this.assets.forEach(asset => {
+        const assetType = asset.type || 'UNKNOWN'
+        grouped[assetType] = (grouped[assetType] || 0) + Number(asset.currentValue || 0)
       })
-      c.setOption({
+
+      chart.setOption({
         tooltip: { trigger: 'item' },
         series: [
           {
             type: 'pie',
             radius: ['40%', '70%'],
-            data: Object.entries(group).map(([k, v]) => ({ name: k, value: v }))
+            data: Object.entries(grouped).map(([name, value]) => ({
+              name,
+              value
+            }))
           }
         ]
       })
     },
-    renderPortfolioChart() {
-      const c = this.getChartInst('portfolio', this.$refs.portfolioChart)
-      if (!c) return
-      const list = [...this.portfolios]
-        .sort((a, b) => Number(b.totalValue || 0) - Number(a.totalValue || 0))
-        .slice(0, 8)
-      c.setOption({
-        xAxis: { type: 'category', data: list.map((i) => i.name) },
-        yAxis: { type: 'value' },
-        series: [{ type: 'bar', data: list.map((i) => i.totalValue) }]
-      })
-    },
     renderQuoteChart() {
-      const c = this.getChartInst('quote', this.$refs.quoteChart)
-      if (!c || !this.quote) return
-      const data = [
-        this.quote.open,
-        this.quote.previousClose,
-        this.quote.dayLow,
-        this.quote.dayHigh,
-        this.quote.price
-      ]
-      c.setOption({
+      const chart = this.getChartInst('quote', this.$refs.quoteChart)
+      if (!chart || !this.quote) {
+        return
+      }
+
+      chart.setOption({
         xAxis: { data: ['Open', 'Prev Close', 'Low', 'High', 'Price'] },
         yAxis: { type: 'value' },
-        series: [{ type: 'line', smooth: true, data }]
+        series: [
+          {
+            type: 'line',
+            smooth: true,
+            data: [
+              this.quote.open,
+              this.quote.previousClose,
+              this.quote.dayLow,
+              this.quote.dayHigh,
+              this.quote.price
+            ]
+          }
+        ]
       })
     },
+    renderPortfolioHistoryChart() {
+      const chart = this.getChartInst('portfolioHistory', this.$refs.portfolioHistoryChart)
+      if (!chart) {
+        return
+      }
+
+      chart.setOption({
+        tooltip: { trigger: 'axis' },
+        xAxis: {
+          type: 'category',
+          data: this.portfolioHistory.map(point => point.timestamp)
+        },
+        yAxis: { type: 'value' },
+        series: [
+          {
+            type: 'line',
+            smooth: true,
+            areaStyle: {},
+            data: this.portfolioHistory.map(point => Number(point.value || 0))
+          }
+        ]
+      })
+    },
+    renderPortfolioPnlChart() {
+      const chart = this.getChartInst('portfolioPnl', this.$refs.portfolioPnlChart)
+      if (!chart) {
+        return
+      }
+
+      const pnlSeries = this.portfolioHistory.map(point => Number(point.pnl || 0))
+      const latestPnl = pnlSeries.length ? pnlSeries[pnlSeries.length - 1] : 0
+      const trendColor = latestPnl >= 0 ? '#39d0a4' : '#ff7a7a'
+
+      chart.setOption({
+        tooltip: {
+          trigger: 'axis',
+          valueFormatter: value => this.formatCurrency(value)
+        },
+        grid: {
+          left: 56,
+          right: 20,
+          top: 24,
+          bottom: 32
+        },
+        xAxis: {
+          type: 'category',
+          boundaryGap: false,
+          data: this.portfolioHistory.map(point => point.timestamp)
+        },
+        yAxis: {
+          type: 'value',
+          axisLabel: {
+            formatter: value => this.formatCompactCurrency(value)
+          }
+        },
+        series: [
+          {
+            type: 'line',
+            smooth: true,
+            showSymbol: false,
+            lineStyle: { width: 3, color: trendColor },
+            itemStyle: { color: trendColor },
+            areaStyle: {
+              color: latestPnl >= 0 ? 'rgba(57, 208, 164, 0.12)' : 'rgba(255, 122, 122, 0.12)'
+            },
+            markLine: {
+              symbol: 'none',
+              lineStyle: {
+                color: 'rgba(255, 255, 255, 0.18)',
+                type: 'dashed'
+              },
+              data: [{ yAxis: 0 }]
+            },
+            data: pnlSeries
+          }
+        ]
+      })
+    },
+    renderHoldingsHistoryChart() {
+      const chart = this.getChartInst('holdingsHistory', this.$refs.holdingsHistoryChart)
+      if (!chart) {
+        return
+      }
+
+      const categories = this.holdingsHistory[0]?.points?.map(point => point.timestamp) || []
+      chart.setOption({
+        tooltip: { trigger: 'axis' },
+        legend: {
+          top: 0,
+          textStyle: { color: '#eef4ff' }
+        },
+        xAxis: {
+          type: 'category',
+          data: categories
+        },
+        yAxis: { type: 'value' },
+        series: this.holdingsHistory.map(history => ({
+          name: history.ticker,
+          type: 'line',
+          smooth: true,
+          data: (history.points || []).map(point => Number(point.value || 0))
+        }))
+      })
+    },
+    getHoldingTrendSeries(ticker) {
+      const history = this.holdingsHistory.find(item => item.ticker === ticker)
+      return (history?.points || []).map(point => Number(point.pnl || 0))
+    },
+    getLatestHoldingPnl(ticker) {
+      const series = this.getHoldingTrendSeries(ticker)
+      return series.length ? series[series.length - 1] : 0
+    },
+    sparklinePath(values, width = 120, height = 36) {
+      if (!Array.isArray(values) || !values.length) {
+        return ''
+      }
+      if (values.length === 1) {
+        const centerY = height / 2
+        return `M 0 ${centerY} L ${width} ${centerY}`
+      }
+
+      const numbers = values.map(value => Number(value || 0))
+      const min = Math.min(...numbers)
+      const max = Math.max(...numbers)
+      const range = max - min || 1
+
+      return numbers.map((value, index) => {
+        const x = (index / (numbers.length - 1)) * width
+        const y = height - ((value - min) / range) * height
+        return `${index === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`
+      }).join(' ')
+    },
     handleResize() {
-      Object.values(this.charts).forEach(c => c?.resize())
-    },
-    openBuyModal(asset) {
-      const dealPrice = Number(asset?.currentPrice ?? asset?.avgCost ?? 0)
-      this.showBuyModal = true
-      this.buyForm = {
-        ticker: asset?.ticker || '',
-        name: asset?.name || '',
-        type: asset?.type || '',
-        quantity: 0,
-        avgCost: dealPrice,
-        currentPrice: dealPrice
-      }
-    },
-    closeBuyModal() {
-      this.showBuyModal = false
-      this.buyForm = createEmptyBuyForm()
-    },
-    async submitBuy() {
-      this.submitting = true
-      this.error = ''
-      try {
-        await createAsset(this.buyForm)
-        await this.refreshAssets()
-        await this.refreshPortfolios()
-        this.$nextTick(() => {
-          this.renderTypeChart()
-          this.renderPortfolioChart()
-        })
-        this.closeBuyModal()
-      } catch (e) {
-        this.error = e.message
-      } finally {
-        this.submitting = false
-      }
-    },
-    openSellModal(asset) {
-      this.showSellModal = true
-      this.currentAsset = asset
-      this.sellQuantity = 0
-    },
-    closeSellModal() {
-      this.showSellModal = false
-      this.currentAsset = null
-      this.sellQuantity = 0
-    },
-    async submitSell() {
-      this.submitting = true
-      this.error = ''
-      try {
-        await sellAsset(this.currentAsset.id, this.sellQuantity)
-        await this.refreshAssets()
-        await this.refreshPortfolios()
-        this.$nextTick(() => {
-          this.renderTypeChart()
-          this.renderPortfolioChart()
-        })
-        this.closeSellModal()
-      } catch (e) {
-        this.error = e.message
-      } finally {
-        this.submitting = false
-      }
+      Object.values(this.charts).forEach(chart => chart?.resize())
     }
   }
 }
@@ -523,6 +810,13 @@ body {
   font-family: sans-serif;
 }
 
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
 .app-shell {
   min-height: 100vh;
   padding: 32px;
@@ -536,6 +830,17 @@ body {
   padding: 28px;
   border-radius: 28px;
   background: rgba(12, 31, 57, 0.95);
+}
+
+.hero-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.hero-button {
+  white-space: nowrap;
 }
 
 .eyebrow,
@@ -558,13 +863,21 @@ body {
   max-width: 680px;
 }
 
-.refresh-button {
+.refresh-button,
+.quote-form button,
+.transaction-form button {
   padding: 14px 22px;
   border-radius: 999px;
   background: linear-gradient(90deg, #39d0a4, #2b7fff);
   border: none;
   font-weight: bold;
   cursor: pointer;
+}
+
+.ghost-button {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: var(--text);
 }
 
 .error-banner,
@@ -576,18 +889,46 @@ body {
   color: #ffd4d4;
 }
 
-.summary-grid {
+.summary-grid,
+.performance-grid,
+.content-grid,
+.analytics-grid,
+.tables-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
   gap: 20px;
   margin: 20px 0;
 }
 
-.summary-card {
+.summary-grid {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.performance-grid {
+  grid-template-columns: 1fr;
+}
+
+.content-grid {
+  grid-template-columns: 1.2fr 1fr;
+}
+
+.analytics-grid {
+  grid-template-columns: 1fr 1fr;
+}
+
+.tables-grid {
+  grid-template-columns: 1fr;
+}
+
+.summary-card,
+.panel {
   padding: 22px;
   background: var(--panel);
   border-radius: 24px;
   border: 1px solid var(--line);
+}
+
+.full-width-panel {
+  margin: 20px 0;
 }
 
 .accent-card {
@@ -598,20 +939,6 @@ body {
   font-size: 34px;
   display: block;
   margin: 8px 0;
-}
-
-.content-grid {
-  display: grid;
-  grid-template-columns: 1.2fr 1fr 1fr;
-  gap: 20px;
-  margin: 20px 0;
-}
-
-.panel {
-  background: var(--panel);
-  border-radius: 24px;
-  padding: 22px;
-  border: 1px solid var(--line);
 }
 
 .panel-heading {
@@ -640,13 +967,17 @@ body {
   width: 100%;
 }
 
-.quote-form span {
+.quote-form span,
+.transaction-form span {
   display: block;
   margin-bottom: 8px;
+  color: var(--muted);
 }
 
 .quote-form input,
-.form-group input {
+.transaction-form input,
+.transaction-form select,
+.transaction-form textarea {
   width: 100%;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -655,12 +986,18 @@ body {
   color: #fff;
 }
 
-.quote-form button {
-  padding: 14px 22px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, #39d0a4, #2b7fff);
-  border: none;
-  font-weight: bold;
+.picker-row {
+  display: flex;
+  gap: 10px;
+}
+
+.picker-button {
+  flex: 0 0 auto;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
   cursor: pointer;
 }
 
@@ -676,11 +1013,20 @@ body {
   border-radius: 18px;
 }
 
-.tables-grid {
+.transaction-form {
   display: grid;
-  grid-template-columns: 1.4fr 1fr;
-  gap: 20px;
-  margin: 20px 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.form-span-2 {
+  grid-column: span 2;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
 }
 
 .table-wrap {
@@ -697,29 +1043,42 @@ td {
   padding: 14px;
   text-align: left;
   border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  vertical-align: top;
 }
 
-.action-cell {
-  white-space: nowrap;
+.trend-cell {
+  min-width: 132px;
 }
 
-.portfolio-list {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
+.sparkline {
+  display: block;
+  width: 120px;
+  height: 36px;
 }
 
-.portfolio-item {
-  padding: 16px;
-  background: rgba(255, 255, 255, 0.03);
-  border-radius: 18px;
+.sparkline-path {
+  fill: none;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
-.portfolio-row,
-.portfolio-meta {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
+.sparkline-path.text-rise {
+  stroke: var(--accent);
+}
+
+.sparkline-path.text-fall {
+  stroke: var(--danger);
+}
+
+.trend-empty {
+  color: var(--muted);
+}
+
+.rate-copy {
+  color: var(--muted);
+  margin-left: 6px;
+  font-size: 12px;
 }
 
 .text-rise {
@@ -730,105 +1089,14 @@ td {
   color: #ff7a7a;
 }
 
-.action-button,
-.sell-btn {
-  padding: 8px 14px;
-  border-radius: 999px;
-  border: none;
-  cursor: pointer;
-  margin-right: 8px;
-}
-
-.action-button {
-  background: #39d0a4;
-  color: #000;
-  font-weight: bold;
-}
-
-.sell-btn,
-.sell-submit {
-  background: #ff7a7a;
-  color: #fff;
-}
-
-.modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 999;
-}
-
-.modal-content {
-  background: #12253f;
-  border-radius: 24px;
-  width: 500px;
-  overflow: hidden;
-}
-
-.small-modal {
-  width: 400px;
-}
-
-.modal-header {
-  padding: 20px;
-  border-bottom: 1px solid var(--line);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  color: #fff;
-  font-size: 20px;
-  cursor: pointer;
-}
-
-.modal-body {
-  padding: 20px;
-  text-align: center;
-}
-
-.modal-footer {
-  padding: 20px;
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  border-top: 1px solid var(--line);
-}
-
-.modal-footer button {
-  padding: 8px 16px;
-  border-radius: 12px;
-  border: none;
-  cursor: pointer;
-}
-
-.asset-form {
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
 @media (max-width: 1200px) {
   .summary-grid,
+  .performance-grid,
   .content-grid,
+  .analytics-grid,
   .tables-grid,
-  .quote-metrics {
+  .quote-metrics,
+  .transaction-form {
     grid-template-columns: repeat(2, 1fr);
   }
 }
@@ -840,9 +1108,12 @@ td {
 
   .hero,
   .summary-grid,
+  .performance-grid,
   .content-grid,
+  .analytics-grid,
   .tables-grid,
-  .quote-metrics {
+  .quote-metrics,
+  .transaction-form {
     grid-template-columns: 1fr;
   }
 
@@ -850,8 +1121,14 @@ td {
     display: block;
   }
 
-  .quote-form {
+  .quote-form,
+  .form-actions,
+  .hero-actions {
     flex-direction: column;
+  }
+
+  .form-span-2 {
+    grid-column: span 1;
   }
 }
 </style>

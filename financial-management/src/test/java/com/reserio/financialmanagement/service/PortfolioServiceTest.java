@@ -2,26 +2,42 @@ package com.reserio.financialmanagement.service;
 
 import com.reserio.financialmanagement.dto.PortfolioDTO;
 import com.reserio.financialmanagement.model.Portfolio;
+import com.reserio.financialmanagement.repository.AssetRepository;
+import com.reserio.financialmanagement.repository.PortfolioAssetRepository;
 import com.reserio.financialmanagement.repository.PortfolioRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.mockito.MockitoAnnotations;
 
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-@SpringBootTest
 class PortfolioServiceTest {
 
     @Mock
     private PortfolioRepository portfolioRepository;
 
+    @Mock
+    private PortfolioAssetRepository portfolioAssetRepository;
+
+    @Mock
+    private AssetRepository assetRepository;
+
+    @Mock
+    private AssetService assetService;
+
     @InjectMocks
     private PortfolioService portfolioService;
+
+    @BeforeEach
+    void setUp() {
+        MockitoAnnotations.openMocks(this);
+    }
 
     @Test
     void testGetPortfolioById() {
@@ -31,6 +47,7 @@ class PortfolioServiceTest {
         portfolio.setDescription("My investment portfolio");
 
         Mockito.when(portfolioRepository.findById(1L)).thenReturn(Optional.of(portfolio));
+        Mockito.when(portfolioAssetRepository.findByPortfolioId(1L)).thenReturn(java.util.Collections.emptyList());
 
         PortfolioDTO portfolioDTO = portfolioService.getPortfolioById(1L);
 
