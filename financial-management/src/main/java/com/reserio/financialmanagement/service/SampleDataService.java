@@ -2,6 +2,7 @@ package com.reserio.financialmanagement.service;
 
 import com.reserio.financialmanagement.dto.AssetTransactionDTO;
 import com.reserio.financialmanagement.dto.MarketHistoryPointDTO;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.reserio.financialmanagement.model.Asset;
 import com.reserio.financialmanagement.model.AssetTransaction;
 import com.reserio.financialmanagement.repository.AssetRepository;
@@ -18,18 +19,19 @@ import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
 public class SampleDataService {
     private static final Set<String> SUPPORTED_TICKERS =
-            Arrays.stream(new String[]{"AAPL", "TSLA", "AMZN", "MSFT", "META", "NVDA", "C"})
+            Arrays.stream(new String[]{"AAPL", "TSLA", "AMZN", "MSFT", "META", "NVDA", "C", "SPY", "GLD"})
                     .collect(Collectors.toSet());
 
-    private static final LocalDate START_DATE = LocalDate.of(2026, 3, 27);
+    private static final LocalDate START_DATE = LocalDate.of(2025, 11, 5);
     private static final Date START_DATE_TIME = Date.from(
-            LocalDateTime.of(2026, 3, 27, 9, 30)
+            LocalDateTime.of(2025, 11, 5, 9, 30)
                     .atZone(ZoneId.of("Asia/Shanghai"))
                     .toInstant()
     );
@@ -64,9 +66,9 @@ public class SampleDataService {
         assetTransactionRepository.deleteAll();
         assetRepository.deleteAll();
 
-        seedStarterHolding("AAPL", "Apple Inc.", 10D);
-        seedStarterHolding("TSLA", "Tesla Inc.", 5D);
-        seedStarterHolding("AMZN", "Amazon.com Inc.", 4D);
+        seedStarterHolding("AAPL", "Apple Inc.", "STOCK", 10D);
+        seedStarterHolding("SPY", "SPDR S&P 500 ETF Trust", "ETF", 6D);
+        seedStarterHolding("GLD", "SPDR Gold Shares", "ETF", 8D);
     }
 
     @Transactional
@@ -84,9 +86,9 @@ public class SampleDataService {
         }
     }
 
-    private void seedStarterHolding(String ticker, String name, double quantity) {
+    private void seedStarterHolding(String ticker, String name, String assetType, double quantity) {
         try {
-            List<MarketHistoryPointDTO> history = marketDataService.getPriceHistory(ticker);
+            List<MarketHistoryPointDTO> history = loadStarterHistory(ticker);
             if (history.isEmpty()) {
                 return;
             }
@@ -113,15 +115,63 @@ public class SampleDataService {
             AssetTransactionDTO transactionDTO = new AssetTransactionDTO();
             transactionDTO.setTicker(ticker);
             transactionDTO.setAssetName(name);
-            transactionDTO.setAssetType("STOCK");
+            transactionDTO.setAssetType(assetType);
             transactionDTO.setTransactionType("BUY");
             transactionDTO.setQuantity(quantity);
             transactionDTO.setPrice(startPoint.getClose() != null ? startPoint.getClose().doubleValue() : 0D);
             transactionDTO.setCurrentPrice(currentPrice);
             transactionDTO.setTransactionDate(START_DATE_TIME);
-            transactionDTO.setNotes("Starter holding reset on 2026-03-27 09:30");
+            transactionDTO.setNotes("Starter holding reset on 2025-11-05 09:30");
             assetTransactionService.createTransaction(transactionDTO);
         } catch (ResponseStatusException ignored) {
         }
+    }
+
+    private List<MarketHistoryPointDTO> loadStarterHistory(String ticker) {
+        try {
+            return marketDataService.getPriceHistory(ticker);
+        } catch (ResponseStatusException ex) {
+            return parseLocalHistoryPoints(ticker);
+        }
+    }
+
+    private List<MarketHistoryPointDTO> parseLocalHistoryPoints(String ticker) {
+        JsonNode historyJson = marketDataService.getLocalHistoryJson(ticker);
+        JsonNode prices = historyJson.path("prices");
+        List<MarketHistoryPointDTO> history = new ArrayList<>();
+        if (!prices.isArray()) {
+            return history;
+        }
+
+        for (JsonNode priceNode : prices) {
+            if (!priceNode.hasNonNull("date") || !priceNode.hasNonNull("close")) {
+                continue;
+            }
+
+            MarketHistoryPointDTO point = new MarketHistoryPointDTO();
+            point.setTimestamp(priceNode.path("date").asText());
+            point.setTimestampValue(Date.from(
+                    LocalDate.parse(priceNode.path("date").asText())
+                            .atStartOfDay(ZoneId.of("Asia/Shanghai"))
+                            .toInstant()
+            ).getTime());
+            if (priceNode.hasNonNull("open")) {
+                point.setOpen(priceNode.path("open").decimalValue());
+            }
+            if (priceNode.hasNonNull("high")) {
+                point.setHigh(priceNode.path("high").decimalValue());
+            }
+            if (priceNode.hasNonNull("low")) {
+                point.setLow(priceNode.path("low").decimalValue());
+            }
+            point.setClose(priceNode.path("close").decimalValue());
+            history.add(point);
+        }
+
+        history.sort((first, second) -> Long.compare(
+                first.getTimestampValue() == null ? Long.MAX_VALUE : first.getTimestampValue(),
+                second.getTimestampValue() == null ? Long.MAX_VALUE : second.getTimestampValue()
+        ));
+        return history;
     }
 }
