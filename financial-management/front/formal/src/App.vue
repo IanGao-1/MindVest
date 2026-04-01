@@ -1,6 +1,7 @@
 <template>
-  <div id="app" class="app-shell">
-    <section class="hero">
+  <div id="app">
+    <div class="app-shell">
+      <section class="hero">
       <div>
         <p class="eyebrow">Financial Management Dashboard</p>
         <h1>Assets, Transactions and Market Snapshot</h1>
@@ -267,51 +268,100 @@
       </form>
     </section>
 
-    <section class="panel">
-      <div class="panel-heading">
-        <div>
-          <p class="panel-kicker">transactions</p>
-          <h2>Transaction History</h2>
+      <section class="panel">
+        <div class="panel-heading">
+          <div>
+            <p class="panel-kicker">transactions</p>
+            <h2>Transaction History</h2>
+          </div>
         </div>
-      </div>
 
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Type</th>
-              <th>Ticker</th>
-              <th>Name</th>
-              <th>Quantity</th>
-              <th>Price</th>
-              <th>Total</th>
-              <th>Remaining</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="transaction in transactions" :key="transaction.id">
-              <td>{{ formatDateTime(transaction.transactionDate) }}</td>
-              <td :class="valueClass(transaction.transactionType === 'BUY' ? 1 : -1)">
-                {{ transaction.transactionType }}
-              </td>
-              <td>{{ transaction.ticker }}</td>
-              <td>{{ transaction.assetName || '--' }}</td>
-              <td>{{ formatNumber(transaction.quantity) }}</td>
-              <td>{{ formatCurrency(transaction.price) }}</td>
-              <td>{{ formatCurrency(transaction.totalAmount) }}</td>
-              <td>{{ formatNumber(transaction.remainingQuantity) }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Type</th>
+                <th>Ticker</th>
+                <th>Name</th>
+                <th>Quantity</th>
+                <th>Price</th>
+                <th>Total</th>
+                <th>Remaining</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="transaction in transactions" :key="transaction.id">
+                <td>{{ formatDateTime(transaction.transactionDate) }}</td>
+                <td :class="valueClass(transaction.transactionType === 'BUY' ? 1 : -1)">
+                  {{ transaction.transactionType }}
+                </td>
+                <td>{{ transaction.ticker }}</td>
+                <td>{{ transaction.assetName || '--' }}</td>
+                <td>{{ formatNumber(transaction.quantity) }}</td>
+                <td>{{ formatCurrency(transaction.price) }}</td>
+                <td>{{ formatCurrency(transaction.totalAmount) }}</td>
+                <td>{{ formatNumber(transaction.remainingQuantity) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <button class="ai-fab" type="button" @click="toggleAiChat" :aria-expanded="aiChatOpen">
+      <img :src="aiIcon" alt="AI assistant">
+    </button>
+
+    <transition name="chat-pop">
+      <section v-if="aiChatOpen" class="ai-chat-panel">
+        <header class="ai-chat-header">
+          <div class="ai-chat-title">
+            <img :src="aiIcon" alt="AI icon">
+            <div>
+              <strong>AI Assistant</strong>
+              <p>Ask about your holdings, quotes, and recent portfolio activity.</p>
+            </div>
+          </div>
+          <button class="ai-close" type="button" @click="aiChatOpen = false">Close</button>
+        </header>
+
+        <div ref="aiChatMessages" class="ai-chat-messages">
+          <article
+            v-for="message in aiMessages"
+            :key="message.id"
+            :class="['ai-message', `ai-message-${message.role}`]"
+          >
+            <span class="ai-message-role">{{ message.role === 'user' ? 'You' : 'AI' }}</span>
+            <p>{{ message.content }}</p>
+          </article>
+        </div>
+
+        <div v-if="aiError" class="inline-error ai-error">{{ aiError }}</div>
+
+        <form class="ai-chat-form" @submit.prevent="submitAiPrompt">
+          <textarea
+            v-model.trim="aiPrompt"
+            rows="4"
+            placeholder="Ask the assistant to explain your portfolio, market quotes, or transaction ideas..."
+            :disabled="aiSubmitting"
+          ></textarea>
+          <div class="ai-chat-actions">
+            <button type="button" class="ghost-button" @click="clearAiChat" :disabled="aiSubmitting">Clear</button>
+            <button type="submit" :disabled="aiSubmitting || !aiPrompt">
+              {{ aiSubmitting ? 'Thinking...' : 'Send' }}
+            </button>
+          </div>
+        </form>
+      </section>
+    </transition>
   </div>
 </template>
 
 <script>
 import * as echarts from 'echarts'
 import {
+  chatWithAi,
   createTransaction,
   fetchAssets,
   fetchHoldingsHistory,
@@ -320,6 +370,8 @@ import {
   fetchTransactions,
   resetSampleData
 } from './services/api'
+
+const AI_ICON = require('../../../src/main/resources/icon.png')
 
 const createEmptyTransactionForm = () => ({
   transactionType: 'BUY',
@@ -343,10 +395,22 @@ const TICKER_PRESETS = {
   C: { assetName: 'Citigroup Inc.', assetType: 'STOCK' }
 }
 
+const createAiGreeting = () => ({
+  id: 'ai-greeting',
+  role: 'assistant',
+  content: 'Hello, I can help explain your portfolio, quote moves, and recent transaction impact.'
+})
+
 export default {
   name: 'App',
   data() {
     return {
+      aiIcon: AI_ICON,
+      aiChatOpen: false,
+      aiPrompt: '',
+      aiSubmitting: false,
+      aiError: '',
+      aiMessages: [createAiGreeting()],
       assets: [],
       transactions: [],
       holdingsHistory: [],
@@ -436,6 +500,75 @@ export default {
         this.error = `Load failed: ${error.message || 'Unknown error'}`
       } finally {
         this.loading = false
+      }
+    },
+    toggleAiChat() {
+      this.aiChatOpen = !this.aiChatOpen
+      if (this.aiChatOpen) {
+        this.$nextTick(() => this.scrollAiChatToBottom())
+      }
+    },
+    clearAiChat() {
+      this.aiPrompt = ''
+      this.aiError = ''
+      this.aiMessages = [createAiGreeting()]
+      this.$nextTick(() => this.scrollAiChatToBottom())
+    },
+    async submitAiPrompt() {
+      if (!this.aiPrompt || this.aiSubmitting) {
+        return
+      }
+
+      const prompt = this.aiPrompt
+      this.aiPrompt = ''
+      this.aiError = ''
+      this.aiMessages.push({
+        id: `user-${Date.now()}`,
+        role: 'user',
+        content: prompt
+      })
+      this.$nextTick(() => this.scrollAiChatToBottom())
+
+      this.aiSubmitting = true
+      try {
+        const contextSummary = this.buildAiContextSummary()
+        const result = await chatWithAi({
+          message: `${contextSummary}\n\nUser question:\n${prompt}`,
+          systemPrompt: 'You are a financial dashboard assistant. Answer in concise, friendly Chinese unless the user clearly uses another language. When discussing investments, avoid promising returns and clearly describe uncertainty.'
+        })
+
+        this.aiMessages.push({
+          id: result.id || `assistant-${Date.now()}`,
+          role: 'assistant',
+          content: result.reply || 'No response returned.'
+        })
+      } catch (error) {
+        this.aiError = `AI request failed: ${error.message || 'Unknown error'}`
+      } finally {
+        this.aiSubmitting = false
+        this.$nextTick(() => this.scrollAiChatToBottom())
+      }
+    },
+    buildAiContextSummary() {
+      const assetSummary = this.assets.slice(0, 8).map(asset => (
+        `${asset.ticker || 'UNKNOWN'}: qty=${Number(asset.quantity || 0)}, value=${Number(asset.currentValue || 0).toFixed(2)}, pnl=${Number(asset.unrealizedPnL || 0).toFixed(2)}`
+      )).join('; ')
+
+      const transactionSummary = this.transactions.slice(0, 5).map(transaction => (
+        `${transaction.transactionType} ${transaction.ticker} qty=${Number(transaction.quantity || 0)} price=${Number(transaction.price || 0)}`
+      )).join('; ')
+
+      return [
+        `Dashboard snapshot: assets=${this.assets.length}, marketValue=${Number(this.totalMarketValue || 0).toFixed(2)}, costBasis=${Number(this.totalCostBasis || 0).toFixed(2)}, pnl=${Number(this.totalPnL || 0).toFixed(2)}.`,
+        assetSummary ? `Top holdings: ${assetSummary}.` : 'No holdings loaded.',
+        transactionSummary ? `Recent transactions: ${transactionSummary}.` : 'No recent transactions loaded.',
+        this.quote?.symbol ? `Active quote: ${this.quote.symbol} price=${Number(this.quote.price || 0).toFixed(2)} change=${Number(this.quote.change || 0).toFixed(2)}.` : 'No active quote loaded.'
+      ].join(' ')
+    },
+    scrollAiChatToBottom() {
+      const container = this.$refs.aiChatMessages
+      if (container) {
+        container.scrollTop = container.scrollHeight
       }
     },
     async searchQuote() {
@@ -1089,6 +1222,165 @@ td {
   color: #ff7a7a;
 }
 
+.ai-fab {
+  position: fixed;
+  right: 28px;
+  bottom: 28px;
+  width: 74px;
+  height: 74px;
+  border: none;
+  border-radius: 24px;
+  background: linear-gradient(145deg, rgba(57, 208, 164, 0.24), rgba(43, 127, 255, 0.3));
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  z-index: 20;
+}
+
+.ai-fab img {
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
+}
+
+.ai-chat-panel {
+  position: fixed;
+  right: 28px;
+  bottom: 118px;
+  width: min(420px, calc(100vw - 32px));
+  max-height: min(72vh, 760px);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 18px;
+  border-radius: 28px;
+  border: 1px solid rgba(126, 156, 199, 0.26);
+  background:
+    radial-gradient(circle at top left, rgba(57, 208, 164, 0.14), transparent 40%),
+    rgba(5, 16, 31, 0.96);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  z-index: 21;
+}
+
+.ai-chat-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.ai-chat-title {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.ai-chat-title img {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  object-fit: contain;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 6px;
+}
+
+.ai-chat-title p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.ai-close {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: transparent;
+  color: var(--text);
+  border-radius: 999px;
+  padding: 10px 14px;
+  cursor: pointer;
+}
+
+.ai-chat-messages {
+  min-height: 220px;
+  max-height: 380px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-right: 4px;
+}
+
+.ai-message {
+  max-width: 88%;
+  padding: 14px 16px;
+  border-radius: 20px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.ai-message p {
+  margin: 6px 0 0;
+}
+
+.ai-message-role {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(238, 244, 255, 0.64);
+}
+
+.ai-message-assistant {
+  align-self: flex-start;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.ai-message-user {
+  align-self: flex-end;
+  background: rgba(43, 127, 255, 0.18);
+  border: 1px solid rgba(43, 127, 255, 0.25);
+}
+
+.ai-chat-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ai-chat-form textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 108px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 14px;
+  border-radius: 18px;
+  color: #fff;
+}
+
+.ai-chat-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.ai-error {
+  margin: 0;
+}
+
+.chat-pop-enter-active,
+.chat-pop-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.chat-pop-enter,
+.chat-pop-leave-to {
+  opacity: 0;
+  transform: translateY(12px) scale(0.98);
+}
+
 @media (max-width: 1200px) {
   .summary-grid,
   .performance-grid,
@@ -1123,12 +1415,28 @@ td {
 
   .quote-form,
   .form-actions,
-  .hero-actions {
+  .hero-actions,
+  .ai-chat-actions {
     flex-direction: column;
   }
 
   .form-span-2 {
     grid-column: span 1;
+  }
+
+  .ai-fab {
+    right: 16px;
+    bottom: 16px;
+    width: 64px;
+    height: 64px;
+    border-radius: 20px;
+  }
+
+  .ai-chat-panel {
+    right: 16px;
+    bottom: 92px;
+    width: calc(100vw - 32px);
+    max-height: 76vh;
   }
 }
 </style>
