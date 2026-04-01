@@ -10,4 +10,5 @@ import java.util.List;
 public interface AssetTransactionRepository extends JpaRepository<AssetTransaction, Long> {
     List<AssetTransaction> findAllByOrderByTransactionDateDescIdDesc();
     List<AssetTransaction> findByTickerOrderByTransactionDateDescIdDesc(String ticker);
+    List<AssetTransaction> findByTickerOrderByTransactionDateAscIdAsc(String ticker);
 }

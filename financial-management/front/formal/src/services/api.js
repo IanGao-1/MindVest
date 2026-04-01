@@ -47,6 +47,20 @@ export function createTransaction(payload) {
   })
 }
 
+export function resetSampleData() {
+  return request('/transactions/reset-sample', {
+    method: 'POST'
+  })
+}
+
+export function fetchHoldingsHistory() {
+  return request('/market-data/holdings-history')
+}
+
+export function fetchPortfolioHistory() {
+  return request('/market-data/portfolio-history')
+}
+
 export function fetchQuote(ticker) {
   return request(`/market-data/yahoo/${encodeURIComponent(ticker)}`)
 }

@@ -1,6 +1,7 @@
 package com.reserio.financialmanagement.service;
 
 import com.reserio.financialmanagement.dto.AssetTransactionDTO;
+import com.reserio.financialmanagement.dto.MarketHistoryPointDTO;
 import com.reserio.financialmanagement.model.Asset;
 import com.reserio.financialmanagement.model.AssetTransaction;
 import com.reserio.financialmanagement.repository.AssetRepository;
@@ -12,14 +13,29 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
 public class AssetTransactionService {
+    private static final Map<String, String> DEFAULT_ASSET_NAMES = Arrays.stream(new String[][]{
+            {"AAPL", "Apple Inc."},
+            {"TSLA", "Tesla Inc."},
+            {"MSFT", "Microsoft Corp."},
+            {"AMZN", "Amazon.com Inc."},
+            {"META", "Meta Platforms Inc."},
+            {"NVDA", "NVIDIA Corp."},
+            {"C", "Citigroup Inc."}
+    }).collect(Collectors.toMap(values -> values[0], values -> values[1]));
 
     @Autowired
     private AssetTransactionRepository assetTransactionRepository;
@@ -27,8 +43,12 @@ public class AssetTransactionService {
     @Autowired
     private AssetRepository assetRepository;
 
+    @Autowired
+    private MarketDataService marketDataService;
+
     @Transactional
     public List<AssetTransactionDTO> getAllTransactions() {
+        normalizeSupportedSingleBuyDates();
         return assetTransactionRepository.findAllByOrderByTransactionDateDescIdDesc().stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
@@ -64,6 +84,49 @@ public class AssetTransactionService {
 
         AssetTransaction savedTransaction = assetTransactionRepository.save(transaction);
         return convertToDTO(savedTransaction);
+    }
+
+    @Transactional
+    public void normalizeSupportedSingleBuyDates() {
+        Map<String, List<AssetTransaction>> transactionsByTicker = assetTransactionRepository.findAll().stream()
+                .filter(transaction -> transaction.getTicker() != null && DEFAULT_ASSET_NAMES.containsKey(transaction.getTicker()))
+                .collect(Collectors.groupingBy(AssetTransaction::getTicker, LinkedHashMap::new, Collectors.toList()));
+
+        for (Map.Entry<String, List<AssetTransaction>> entry : transactionsByTicker.entrySet()) {
+            List<AssetTransaction> tickerTransactions = entry.getValue();
+            if (tickerTransactions.size() != 1) {
+                continue;
+            }
+
+            AssetTransaction transaction = tickerTransactions.get(0);
+            if (!"BUY".equalsIgnoreCase(transaction.getTransactionType())) {
+                continue;
+            }
+
+            try {
+                List<MarketHistoryPointDTO> history = marketDataService.getPriceHistory(entry.getKey());
+                if (history.isEmpty() || history.get(0).getTimestampValue() == null) {
+                    continue;
+                }
+
+                Date earliestDate = new Date(history.get(0).getTimestampValue());
+                if (sameOrBefore(transaction.getTransactionDate(), earliestDate)) {
+                    continue;
+                }
+
+                transaction.setTransactionDate(earliestDate);
+                assetTransactionRepository.save(transaction);
+
+                List<Asset> assets = assetRepository.findAllByTickerOrderByIdAsc(entry.getKey());
+                for (Asset asset : assets) {
+                    asset.setPurchaseDate(earliestDate);
+                }
+                if (!assets.isEmpty()) {
+                    assetRepository.saveAll(assets);
+                }
+            } catch (org.springframework.web.server.ResponseStatusException ignored) {
+            }
+        }
     }
 
     private Asset resolveAssetByTicker(String ticker) {
@@ -108,8 +171,8 @@ public class AssetTransactionService {
         if (asset == null) {
             asset = new Asset();
             asset.setTicker(ticker);
-            asset.setName(requireText(transactionDTO.getAssetName(), "Asset name is required for a new asset"));
-            asset.setType(requireText(transactionDTO.getAssetType(), "Asset type is required for a new asset"));
+            asset.setName(resolveDefaultAssetName(ticker, transactionDTO.getAssetName()));
+            asset.setType(resolveDefaultAssetType(transactionDTO.getAssetType()));
             asset.setQuantity(0D);
             asset.setAvgCost(0D);
             asset.setPurchaseDate(transactionDate);
@@ -194,12 +257,16 @@ public class AssetTransactionService {
     }
 
     private String resolveAssetType(Asset asset, AssetTransactionDTO transactionDTO) {
-        return asset != null ? asset.getType() : transactionDTO.getAssetType();
+        return asset != null ? asset.getType() : resolveDefaultAssetType(transactionDTO.getAssetType());
     }
 
     private Double resolveCurrentPriceForBuy(Asset asset, AssetTransactionDTO transactionDTO) {
         if (transactionDTO.getCurrentPrice() != null && transactionDTO.getCurrentPrice() > 0) {
             return transactionDTO.getCurrentPrice();
+        }
+        try {
+            return marketDataService.getMarketPrice(asset.getTicker());
+        } catch (Exception ignored) {
         }
         if (asset.getCurrentPrice() != null && asset.getCurrentPrice() > 0) {
             return asset.getCurrentPrice();
@@ -211,17 +278,14 @@ public class AssetTransactionService {
         if (transactionDTO.getCurrentPrice() != null && transactionDTO.getCurrentPrice() > 0) {
             return transactionDTO.getCurrentPrice();
         }
+        try {
+            return marketDataService.getMarketPrice(asset.getTicker());
+        } catch (Exception ignored) {
+        }
         if (asset.getCurrentPrice() != null && asset.getCurrentPrice() > 0) {
             return asset.getCurrentPrice();
         }
         return transactionDTO.getPrice();
-    }
-
-    private String requireText(String value, String message) {
-        if (value == null || value.trim().isEmpty()) {
-            throw new IllegalArgumentException(message);
-        }
-        return value.trim();
     }
 
     private String firstNonBlank(String first, String fallback) {
@@ -229,6 +293,20 @@ public class AssetTransactionService {
             return first.trim();
         }
         return fallback;
+    }
+
+    private String resolveDefaultAssetName(String ticker, String providedName) {
+        if (providedName != null && !providedName.trim().isEmpty()) {
+            return providedName.trim();
+        }
+        return DEFAULT_ASSET_NAMES.getOrDefault(ticker, ticker);
+    }
+
+    private String resolveDefaultAssetType(String providedType) {
+        if (providedType != null && !providedType.trim().isEmpty()) {
+            return providedType.trim().toUpperCase(Locale.ROOT);
+        }
+        return "STOCK";
     }
 
     private BigDecimal multiply(Double quantity, Double price) {
@@ -239,5 +317,14 @@ public class AssetTransactionService {
 
     private double defaultValue(Double value) {
         return value == null ? 0D : value;
+    }
+
+    private boolean sameOrBefore(Date value, Date reference) {
+        if (value == null) {
+            return false;
+        }
+        LocalDate currentDate = Instant.ofEpochMilli(value.getTime()).atZone(ZoneId.of("Asia/Shanghai")).toLocalDate();
+        LocalDate referenceDate = Instant.ofEpochMilli(reference.getTime()).atZone(ZoneId.of("Asia/Shanghai")).toLocalDate();
+        return !currentDate.isAfter(referenceDate);
     }
 }

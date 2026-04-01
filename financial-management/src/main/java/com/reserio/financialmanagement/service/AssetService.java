@@ -1,6 +1,7 @@
 package com.reserio.financialmanagement.service;
 
 import com.reserio.financialmanagement.dto.AssetDTO;
+import com.reserio.financialmanagement.dto.YahooQuoteDTO;
 import com.reserio.financialmanagement.model.Asset;
 import com.reserio.financialmanagement.repository.AssetRepository;
 import org.springframework.beans.BeanUtils;
@@ -10,7 +11,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -20,6 +25,9 @@ public class AssetService {
 
     @Autowired
     private AssetRepository assetRepository;
+
+    @Autowired
+    private MarketDataService marketDataService;
 
     @Transactional
     public List<AssetDTO> getAllAssets() {
@@ -31,6 +39,7 @@ public class AssetService {
     public AssetDTO getAssetById(Long id) {
         Asset asset = assetRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Asset not found"));
+        asset = refreshAssetMarketSnapshot(asset);
         return convertToDTO(asset);
     }
 
@@ -126,11 +135,53 @@ public class AssetService {
         List<Asset> normalizedAssets = new ArrayList<>();
         for (String ticker : tickers) {
             Asset normalized = resolveAssetByTicker(ticker);
+            normalized = refreshAssetMarketSnapshot(normalized);
             if (normalized != null && defaultValue(normalized.getQuantity()) > 0) {
                 normalizedAssets.add(normalized);
             }
         }
         return normalizedAssets;
+    }
+
+    private Asset refreshAssetMarketSnapshot(Asset asset) {
+        if (asset == null || asset.getTicker() == null || asset.getTicker().trim().isEmpty()) {
+            return asset;
+        }
+
+        try {
+            YahooQuoteDTO quote = marketDataService.getYahooQuote(asset.getTicker());
+            if (quote == null || quote.getPrice() == null) {
+                return asset;
+            }
+
+            double latestClose = quote.getPrice().doubleValue();
+            Date latestDate = parseQuoteTimestamp(quote.getLatestTimestamp());
+            boolean priceChanged = asset.getCurrentPrice() == null || Double.compare(asset.getCurrentPrice(), latestClose) != 0;
+            boolean lastUpdatedChanged = asset.getLastUpdated() == null;
+
+            if (!priceChanged && !lastUpdatedChanged) {
+                return asset;
+            }
+
+            asset.setCurrentPrice(latestClose);
+            asset.setLastUpdated(latestDate);
+            return assetRepository.save(asset);
+        } catch (Exception ex) {
+            return asset;
+        }
+    }
+
+    private Date parseQuoteTimestamp(String latestTimestamp) {
+        if (latestTimestamp == null || latestTimestamp.trim().isEmpty()) {
+            return new Date();
+        }
+        try {
+            return Date.from(LocalDateTime.parse(latestTimestamp)
+                    .atZone(ZoneId.of("Asia/Shanghai"))
+                    .toInstant());
+        } catch (DateTimeParseException ex) {
+            return new Date();
+        }
     }
 
     private AssetDTO convertToDTO(Asset asset) {

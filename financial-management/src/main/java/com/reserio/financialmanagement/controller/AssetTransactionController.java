@@ -2,6 +2,7 @@ package com.reserio.financialmanagement.controller;
 
 import com.reserio.financialmanagement.dto.AssetTransactionDTO;
 import com.reserio.financialmanagement.service.AssetTransactionService;
+import com.reserio.financialmanagement.service.SampleDataService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +20,9 @@ public class AssetTransactionController {
     @Autowired
     private AssetTransactionService assetTransactionService;
 
+    @Autowired
+    private SampleDataService sampleDataService;
+
     @Operation(summary = "Get all transactions")
     @GetMapping
     public ResponseEntity<List<AssetTransactionDTO>> getAllTransactions() {
@@ -30,5 +34,12 @@ public class AssetTransactionController {
     public ResponseEntity<AssetTransactionDTO> createTransaction(@RequestBody AssetTransactionDTO transactionDTO) {
         AssetTransactionDTO createdTransaction = assetTransactionService.createTransaction(transactionDTO);
         return ResponseEntity.status(HttpStatus.CREATED).body(createdTransaction);
+    }
+
+    @Operation(summary = "Reset all holdings and transactions to starter sample data")
+    @PostMapping("/reset-sample")
+    public ResponseEntity<Void> resetSampleData() {
+        sampleDataService.resetToStarterData();
+        return ResponseEntity.noContent().build();
     }
 }

@@ -9,9 +9,14 @@
           sell transactions below, and the backend will automatically update your holdings.
         </p>
       </div>
-      <button class="refresh-button" :disabled="loading" @click="loadDashboard">
-        {{ loading ? 'Loading...' : 'Refresh' }}
-      </button>
+      <div class="hero-actions">
+        <button class="ghost-button hero-button" :disabled="resettingSampleData || loading" @click="handleResetSampleData">
+          {{ resettingSampleData ? 'Resetting...' : 'Reset Sample Data' }}
+        </button>
+        <button class="refresh-button hero-button" :disabled="loading" @click="loadDashboard">
+          {{ loading ? 'Loading...' : 'Refresh' }}
+        </button>
+      </div>
     </section>
 
     <section v-if="error" class="error-banner">
@@ -41,12 +46,24 @@
       </article>
     </section>
 
+    <section class="performance-grid">
+      <article class="panel">
+        <div class="panel-heading">
+          <div>
+            <p class="panel-kicker">performance</p>
+            <h2>Total Holdings P/L Trend</h2>
+          </div>
+        </div>
+        <div ref="portfolioPnlChart" class="chart chart-medium"></div>
+      </article>
+    </section>
+
     <section class="content-grid">
       <article class="panel quote-panel">
         <div class="panel-heading">
           <div>
             <p class="panel-kicker">quote</p>
-            <h2>Yahoo Finance / Fallback</h2>
+            <h2>Finnhub / Historical Fallback</h2>
           </div>
         </div>
 
@@ -95,6 +112,28 @@
       </article>
     </section>
 
+    <section class="analytics-grid">
+      <article class="panel">
+        <div class="panel-heading">
+          <div>
+            <p class="panel-kicker">portfolio</p>
+            <h2>Portfolio Value History</h2>
+          </div>
+        </div>
+        <div ref="portfolioHistoryChart" class="chart chart-medium"></div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-heading">
+          <div>
+            <p class="panel-kicker">holdings</p>
+            <h2>Holdings Value History</h2>
+          </div>
+        </div>
+        <div ref="holdingsHistoryChart" class="chart chart-medium"></div>
+      </article>
+    </section>
+
     <section class="tables-grid">
       <article class="panel">
         <div class="panel-heading">
@@ -116,6 +155,7 @@
                 <th>Cost Basis</th>
                 <th>Current Value</th>
                 <th>P/L</th>
+                <th>Trend</th>
               </tr>
             </thead>
             <tbody>
@@ -132,69 +172,99 @@
                   {{ formatCurrency(asset.unrealizedPnL) }}
                   <span class="rate-copy">({{ formatPercent(asset.unrealizedPnLRate) }})</span>
                 </td>
+                <td class="trend-cell">
+                  <svg
+                    v-if="getHoldingTrendSeries(asset.ticker).length"
+                    class="sparkline"
+                    viewBox="0 0 120 36"
+                    preserveAspectRatio="none"
+                  >
+                    <path
+                      :d="sparklinePath(getHoldingTrendSeries(asset.ticker), 120, 36)"
+                      :class="['sparkline-path', valueClass(getLatestHoldingPnl(asset.ticker))]"
+                    />
+                  </svg>
+                  <span v-else class="trend-empty">--</span>
+                </td>
               </tr>
             </tbody>
           </table>
         </div>
       </article>
+    </section>
 
-      <article class="panel">
-        <div class="panel-heading">
-          <div>
-            <p class="panel-kicker">transactions</p>
-            <h2>Add Transaction</h2>
-          </div>
+    <section class="panel full-width-panel">
+      <div class="panel-heading">
+        <div>
+          <p class="panel-kicker">transactions</p>
+          <h2>Add Transaction</h2>
         </div>
+      </div>
 
-        <form class="transaction-form" @submit.prevent="submitTransaction">
-          <label>
-            <span>Type</span>
-            <select v-model="transactionForm.transactionType">
-              <option value="BUY">BUY</option>
-              <option value="SELL">SELL</option>
-            </select>
-          </label>
-          <label>
-            <span>Ticker</span>
-            <input v-model.trim="transactionForm.ticker" type="text" required placeholder="AAPL">
-          </label>
-          <label>
-            <span>Name</span>
-            <input v-model.trim="transactionForm.assetName" type="text" placeholder="Apple Inc.">
-          </label>
-          <label>
-            <span>Type</span>
-            <input v-model.trim="transactionForm.assetType" type="text" placeholder="STOCK">
-          </label>
-          <label>
-            <span>Quantity</span>
-            <input v-model.number="transactionForm.quantity" type="number" min="0.01" step="0.01" required>
-          </label>
-          <label>
-            <span>Price</span>
-            <input v-model.number="transactionForm.price" type="number" min="0.01" step="0.01" required>
-          </label>
-          <label>
-            <span>Current Price</span>
-            <input v-model.number="transactionForm.currentPrice" type="number" min="0.01" step="0.01" placeholder="Optional">
-          </label>
-          <label>
-            <span>Date</span>
-            <input v-model="transactionForm.transactionDate" type="datetime-local">
-          </label>
-          <label class="form-span-2">
-            <span>Notes</span>
-            <textarea v-model.trim="transactionForm.notes" rows="3" placeholder="Optional notes"></textarea>
-          </label>
-
-          <div class="form-actions form-span-2">
-            <button type="button" class="ghost-button" @click="resetTransactionForm">Reset</button>
-            <button type="submit" :disabled="submittingTransaction">
-              {{ submittingTransaction ? 'Saving...' : 'Save Transaction' }}
-            </button>
+      <form class="transaction-form" @submit.prevent="submitTransaction">
+        <label>
+          <span>Type</span>
+          <select v-model="transactionForm.transactionType">
+            <option value="BUY">BUY</option>
+            <option value="SELL">SELL</option>
+          </select>
+        </label>
+        <label>
+          <span>Ticker</span>
+          <input
+            v-model.trim="transactionForm.ticker"
+            type="text"
+            required
+            placeholder="AAPL"
+            @input="applyTickerDefaults"
+          >
+        </label>
+        <label>
+          <span>Name</span>
+          <input v-model.trim="transactionForm.assetName" type="text" placeholder="Apple Inc.">
+        </label>
+        <label>
+          <span>Type</span>
+          <input v-model.trim="transactionForm.assetType" type="text" placeholder="STOCK">
+        </label>
+        <label>
+          <span>Quantity</span>
+          <input v-model.number="transactionForm.quantity" type="number" min="0.01" step="0.01" required>
+        </label>
+        <label>
+          <span>Price</span>
+          <input v-model.number="transactionForm.price" type="number" min="0.01" step="0.01" required>
+        </label>
+        <label>
+          <span>Current Price</span>
+          <input v-model.number="transactionForm.currentPrice" type="number" min="0.01" step="0.01" placeholder="Optional">
+        </label>
+        <label>
+          <span>Date</span>
+          <div class="picker-row">
+            <input
+              ref="transactionDateInput"
+              v-model="transactionForm.transactionDate"
+              type="datetime-local"
+              step="60"
+              @focus="openDatePicker"
+              @click="openDatePicker"
+            >
+            <button type="button" class="picker-button" @click="openDatePicker">Pick</button>
           </div>
-        </form>
-      </article>
+        </label>
+        <label class="form-span-2">
+          <span>Notes</span>
+          <textarea v-model.trim="transactionForm.notes" rows="3" placeholder="Optional notes"></textarea>
+        </label>
+
+        <div class="form-actions form-span-2">
+          <button type="button" class="ghost-button" @click="resetTransactionForm">Reset</button>
+          <button type="submit" :disabled="submittingTransaction">
+            {{ submittingTransaction ? 'Saving...' : 'Save Transaction' }}
+          </button>
+        </div>
+      </form>
     </section>
 
     <section class="panel">
@@ -241,7 +311,15 @@
 
 <script>
 import * as echarts from 'echarts'
-import { createTransaction, fetchAssets, fetchQuote, fetchTransactions } from './services/api'
+import {
+  createTransaction,
+  fetchAssets,
+  fetchHoldingsHistory,
+  fetchPortfolioHistory,
+  fetchQuote,
+  fetchTransactions,
+  resetSampleData
+} from './services/api'
 
 const createEmptyTransactionForm = () => ({
   transactionType: 'BUY',
@@ -255,21 +333,36 @@ const createEmptyTransactionForm = () => ({
   notes: ''
 })
 
+const TICKER_PRESETS = {
+  AAPL: { assetName: 'Apple Inc.', assetType: 'STOCK' },
+  TSLA: { assetName: 'Tesla Inc.', assetType: 'STOCK' },
+  MSFT: { assetName: 'Microsoft Corp.', assetType: 'STOCK' },
+  AMZN: { assetName: 'Amazon.com Inc.', assetType: 'STOCK' },
+  META: { assetName: 'Meta Platforms Inc.', assetType: 'STOCK' },
+  NVDA: { assetName: 'NVIDIA Corp.', assetType: 'STOCK' },
+  C: { assetName: 'Citigroup Inc.', assetType: 'STOCK' }
+}
+
 export default {
   name: 'App',
   data() {
     return {
       assets: [],
       transactions: [],
+      holdingsHistory: [],
+      portfolioHistory: [],
       quote: null,
       tickerInput: 'TSLA',
       loading: false,
       quoteLoading: false,
       submittingTransaction: false,
+      resettingSampleData: false,
+      transactionQuoteLoading: false,
       error: '',
       quoteError: '',
       transactionForm: createEmptyTransactionForm(),
-      charts: { type: null, quote: null }
+      charts: { type: null, quote: null, portfolioPnl: null, portfolioHistory: null, holdingsHistory: null },
+      transactionLookupToken: 0
     }
   },
   computed: {
@@ -302,16 +395,39 @@ export default {
       this.loading = true
       this.error = ''
       try {
-        const [assets, transactions] = await Promise.all([
+        const [assetsResult, transactionsResult, holdingsHistoryResult, portfolioHistoryResult] = await Promise.allSettled([
           fetchAssets(),
-          fetchTransactions()
+          fetchTransactions(),
+          fetchHoldingsHistory(),
+          fetchPortfolioHistory()
         ])
-        this.assets = Array.isArray(assets) ? assets : []
-        this.transactions = Array.isArray(transactions) ? transactions : []
+
+        if (assetsResult.status === 'rejected') {
+          throw assetsResult.reason
+        }
+        if (transactionsResult.status === 'rejected') {
+          throw transactionsResult.reason
+        }
+
+        this.assets = Array.isArray(assetsResult.value) ? assetsResult.value : []
+        this.transactions = Array.isArray(transactionsResult.value) ? transactionsResult.value : []
+        this.holdingsHistory = holdingsHistoryResult.status === 'fulfilled' && Array.isArray(holdingsHistoryResult.value)
+          ? holdingsHistoryResult.value
+          : []
+        this.portfolioHistory = portfolioHistoryResult.status === 'fulfilled' && Array.isArray(portfolioHistoryResult.value)
+          ? portfolioHistoryResult.value
+          : []
 
         this.$nextTick(() => {
           this.renderTypeChart()
+          this.renderPortfolioPnlChart()
+          this.renderPortfolioHistoryChart()
+          this.renderHoldingsHistoryChart()
         })
+
+        if (holdingsHistoryResult.status === 'rejected' || portfolioHistoryResult.status === 'rejected') {
+          this.error = 'Historical charts are temporarily unavailable, but holdings and transactions loaded successfully.'
+        }
 
         if (!this.quote) {
           await this.searchQuote()
@@ -360,7 +476,72 @@ export default {
         this.submittingTransaction = false
       }
     },
+    async handleResetSampleData() {
+      this.resettingSampleData = true
+      this.error = ''
+      try {
+        await resetSampleData()
+        this.quote = null
+        await this.loadDashboard()
+      } catch (error) {
+        this.error = `Reset failed: ${error.message || 'Unknown error'}`
+      } finally {
+        this.resettingSampleData = false
+      }
+    },
+    applyTickerDefaults() {
+      const ticker = this.transactionForm.ticker?.trim()?.toUpperCase()
+      if (!ticker) {
+        return
+      }
+      this.transactionForm.ticker = ticker
+      const preset = TICKER_PRESETS[ticker]
+      if (!preset) {
+        return
+      }
+      if (!this.transactionForm.assetName) {
+        this.transactionForm.assetName = preset.assetName
+      }
+      if (!this.transactionForm.assetType) {
+        this.transactionForm.assetType = preset.assetType
+      }
+      this.lookupTransactionCurrentPrice(ticker)
+    },
+    async lookupTransactionCurrentPrice(ticker) {
+      const normalizedTicker = ticker?.trim()?.toUpperCase()
+      if (!normalizedTicker) {
+        return
+      }
+
+      const lookupToken = ++this.transactionLookupToken
+      this.transactionQuoteLoading = true
+      try {
+        const quote = await fetchQuote(normalizedTicker)
+        if (lookupToken !== this.transactionLookupToken || this.transactionForm.ticker !== normalizedTicker) {
+          return
+        }
+        if (quote?.price != null) {
+          this.transactionForm.currentPrice = Number(quote.price)
+        }
+        if (!this.transactionForm.assetName && quote?.name) {
+          this.transactionForm.assetName = quote.name
+        }
+      } catch (error) {
+        // Keep the form usable even if quote lookup fails.
+      } finally {
+        if (lookupToken === this.transactionLookupToken) {
+          this.transactionQuoteLoading = false
+        }
+      }
+    },
+    openDatePicker() {
+      const input = this.$refs.transactionDateInput
+      if (input && typeof input.showPicker === 'function') {
+        input.showPicker()
+      }
+    },
     resetTransactionForm() {
+      this.transactionLookupToken += 1
       this.transactionForm = createEmptyTransactionForm()
     },
     formatCurrency(value) {
@@ -371,6 +552,17 @@ export default {
         style: 'currency',
         currency: 'USD',
         maximumFractionDigits: 2
+      }).format(Number(value))
+    },
+    formatCompactCurrency(value) {
+      if (value == null || Number.isNaN(Number(value))) {
+        return '--'
+      }
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        notation: 'compact',
+        maximumFractionDigits: 1
       }).format(Number(value))
     },
     formatNumber(value) {
@@ -457,6 +649,138 @@ export default {
         ]
       })
     },
+    renderPortfolioHistoryChart() {
+      const chart = this.getChartInst('portfolioHistory', this.$refs.portfolioHistoryChart)
+      if (!chart) {
+        return
+      }
+
+      chart.setOption({
+        tooltip: { trigger: 'axis' },
+        xAxis: {
+          type: 'category',
+          data: this.portfolioHistory.map(point => point.timestamp)
+        },
+        yAxis: { type: 'value' },
+        series: [
+          {
+            type: 'line',
+            smooth: true,
+            areaStyle: {},
+            data: this.portfolioHistory.map(point => Number(point.value || 0))
+          }
+        ]
+      })
+    },
+    renderPortfolioPnlChart() {
+      const chart = this.getChartInst('portfolioPnl', this.$refs.portfolioPnlChart)
+      if (!chart) {
+        return
+      }
+
+      const pnlSeries = this.portfolioHistory.map(point => Number(point.pnl || 0))
+      const latestPnl = pnlSeries.length ? pnlSeries[pnlSeries.length - 1] : 0
+      const trendColor = latestPnl >= 0 ? '#39d0a4' : '#ff7a7a'
+
+      chart.setOption({
+        tooltip: {
+          trigger: 'axis',
+          valueFormatter: value => this.formatCurrency(value)
+        },
+        grid: {
+          left: 56,
+          right: 20,
+          top: 24,
+          bottom: 32
+        },
+        xAxis: {
+          type: 'category',
+          boundaryGap: false,
+          data: this.portfolioHistory.map(point => point.timestamp)
+        },
+        yAxis: {
+          type: 'value',
+          axisLabel: {
+            formatter: value => this.formatCompactCurrency(value)
+          }
+        },
+        series: [
+          {
+            type: 'line',
+            smooth: true,
+            showSymbol: false,
+            lineStyle: { width: 3, color: trendColor },
+            itemStyle: { color: trendColor },
+            areaStyle: {
+              color: latestPnl >= 0 ? 'rgba(57, 208, 164, 0.12)' : 'rgba(255, 122, 122, 0.12)'
+            },
+            markLine: {
+              symbol: 'none',
+              lineStyle: {
+                color: 'rgba(255, 255, 255, 0.18)',
+                type: 'dashed'
+              },
+              data: [{ yAxis: 0 }]
+            },
+            data: pnlSeries
+          }
+        ]
+      })
+    },
+    renderHoldingsHistoryChart() {
+      const chart = this.getChartInst('holdingsHistory', this.$refs.holdingsHistoryChart)
+      if (!chart) {
+        return
+      }
+
+      const categories = this.holdingsHistory[0]?.points?.map(point => point.timestamp) || []
+      chart.setOption({
+        tooltip: { trigger: 'axis' },
+        legend: {
+          top: 0,
+          textStyle: { color: '#eef4ff' }
+        },
+        xAxis: {
+          type: 'category',
+          data: categories
+        },
+        yAxis: { type: 'value' },
+        series: this.holdingsHistory.map(history => ({
+          name: history.ticker,
+          type: 'line',
+          smooth: true,
+          data: (history.points || []).map(point => Number(point.value || 0))
+        }))
+      })
+    },
+    getHoldingTrendSeries(ticker) {
+      const history = this.holdingsHistory.find(item => item.ticker === ticker)
+      return (history?.points || []).map(point => Number(point.pnl || 0))
+    },
+    getLatestHoldingPnl(ticker) {
+      const series = this.getHoldingTrendSeries(ticker)
+      return series.length ? series[series.length - 1] : 0
+    },
+    sparklinePath(values, width = 120, height = 36) {
+      if (!Array.isArray(values) || !values.length) {
+        return ''
+      }
+      if (values.length === 1) {
+        const centerY = height / 2
+        return `M 0 ${centerY} L ${width} ${centerY}`
+      }
+
+      const numbers = values.map(value => Number(value || 0))
+      const min = Math.min(...numbers)
+      const max = Math.max(...numbers)
+      const range = max - min || 1
+
+      return numbers.map((value, index) => {
+        const x = (index / (numbers.length - 1)) * width
+        const y = height - ((value - min) / range) * height
+        return `${index === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`
+      }).join(' ')
+    },
     handleResize() {
       Object.values(this.charts).forEach(chart => chart?.resize())
     }
@@ -508,6 +832,17 @@ textarea {
   background: rgba(12, 31, 57, 0.95);
 }
 
+.hero-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.hero-button {
+  white-space: nowrap;
+}
+
 .eyebrow,
 .summary-label,
 .panel-kicker {
@@ -555,7 +890,9 @@ textarea {
 }
 
 .summary-grid,
+.performance-grid,
 .content-grid,
+.analytics-grid,
 .tables-grid {
   display: grid;
   gap: 20px;
@@ -566,12 +903,20 @@ textarea {
   grid-template-columns: repeat(4, 1fr);
 }
 
+.performance-grid {
+  grid-template-columns: 1fr;
+}
+
 .content-grid {
   grid-template-columns: 1.2fr 1fr;
 }
 
+.analytics-grid {
+  grid-template-columns: 1fr 1fr;
+}
+
 .tables-grid {
-  grid-template-columns: 1.5fr 1fr;
+  grid-template-columns: 1fr;
 }
 
 .summary-card,
@@ -580,6 +925,10 @@ textarea {
   background: var(--panel);
   border-radius: 24px;
   border: 1px solid var(--line);
+}
+
+.full-width-panel {
+  margin: 20px 0;
 }
 
 .accent-card {
@@ -637,6 +986,21 @@ textarea {
   color: #fff;
 }
 
+.picker-row {
+  display: flex;
+  gap: 10px;
+}
+
+.picker-button {
+  flex: 0 0 auto;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  cursor: pointer;
+}
+
 .quote-metrics {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -682,6 +1046,35 @@ td {
   vertical-align: top;
 }
 
+.trend-cell {
+  min-width: 132px;
+}
+
+.sparkline {
+  display: block;
+  width: 120px;
+  height: 36px;
+}
+
+.sparkline-path {
+  fill: none;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.sparkline-path.text-rise {
+  stroke: var(--accent);
+}
+
+.sparkline-path.text-fall {
+  stroke: var(--danger);
+}
+
+.trend-empty {
+  color: var(--muted);
+}
+
 .rate-copy {
   color: var(--muted);
   margin-left: 6px;
@@ -698,7 +1091,9 @@ td {
 
 @media (max-width: 1200px) {
   .summary-grid,
+  .performance-grid,
   .content-grid,
+  .analytics-grid,
   .tables-grid,
   .quote-metrics,
   .transaction-form {
@@ -713,7 +1108,9 @@ td {
 
   .hero,
   .summary-grid,
+  .performance-grid,
   .content-grid,
+  .analytics-grid,
   .tables-grid,
   .quote-metrics,
   .transaction-form {
@@ -725,7 +1122,8 @@ td {
   }
 
   .quote-form,
-  .form-actions {
+  .form-actions,
+  .hero-actions {
     flex-direction: column;
   }
 
