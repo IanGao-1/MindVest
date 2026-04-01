@@ -21,9 +21,10 @@ public class AlphaVintage {
     public static void main(String[] args) throws Exception {
 //        List<String> symbols = List.of("AAPL",
 //                "TSLA", "MSFT", "AMZN", "QQQ", "BND", "GLD", "VNQ");
-        List<String> symbols = List.of("C",
-                "META", "NVDA", "SPY", "VOO", "TLT", "GLD", "SLV");
-
+//        List<String> symbols = List.of("C",
+//                "META", "NVDA", "SPY", "VOO", "TLT", "GLD", "SLV");
+        List<String> symbols = List.of("USD",
+                "GBP", "CNY");
         for (String symbol : symbols) {
             downloadAndSaveDailyHistory(symbol);
             Thread.sleep(15000);

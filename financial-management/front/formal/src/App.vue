@@ -230,6 +230,10 @@
                     <strong>{{ formatDateTime(transaction.transactionDate) }}</strong>
                   </div>
                   <div class="activity-cell">
+                    <span>Ticker</span>
+                    <strong>{{ transaction.ticker }}</strong>
+                  </div>
+                  <div class="activity-cell">
                     <span>Asset</span>
                     <strong>{{ transaction.assetName || transaction.ticker }}</strong>
                   </div>
@@ -258,7 +262,12 @@
               </div>
               <div class="research-controls">
                 <form class="card-search" @submit.prevent="handleHistorySearch">
-                  <input v-model.trim="historyTickerInput" type="text" placeholder="Search ticker...">
+                  <input
+                    v-model.trim="historyTickerInput"
+                    type="text"
+                    list="available-asset-options"
+                    placeholder="Search ticker..."
+                  >
                   <button type="submit" :disabled="historyLoading">
                     {{ historyLoading ? '...' : 'Search' }}
                   </button>
@@ -361,9 +370,9 @@
           />
         </svg>
         <div class="trend-popover-meta">
-          <span>{{ formatCurrency(hoveredTrend.firstClose) }}</span>
+          <span>{{ formatCurrency(hoveredTrend.firstValue) }}</span>
           <span :class="holdingValueClass(hoveredTrend.delta)">{{ formatSigned(hoveredTrend.delta) }}</span>
-          <span>{{ formatCurrency(hoveredTrend.lastClose) }}</span>
+          <span>{{ formatCurrency(hoveredTrend.lastValue) }}</span>
         </div>
       </div>
     </main>
@@ -407,6 +416,7 @@
                 <input
                   v-model.trim="transactionForm.ticker"
                   type="text"
+                  list="available-asset-options"
                   required
                   placeholder="AAPL"
                   @input="applyTickerDefaults"
@@ -619,6 +629,16 @@
         </div>
       </section>
     </div>
+
+    <datalist id="available-asset-options">
+      <option
+        v-for="option in availableAssetOptions"
+        :key="option.ticker"
+        :value="option.ticker"
+      >
+        {{ option.label }}
+      </option>
+    </datalist>
   </div>
 </template>
 
@@ -650,19 +670,23 @@ const createEmptyTransactionForm = () => ({
 const TICKER_PRESETS = {
   AAPL: { assetName: 'Apple Inc.', assetType: 'STOCK' },
   AMZN: { assetName: 'Amazon.com Inc.', assetType: 'STOCK' },
-  BND: { assetName: 'Vanguard Total Bond Market ETF', assetType: 'ETF' },
+  BND: { assetName: 'Vanguard Total Bond Market', assetType: 'BOND ETF' },
   C: { assetName: 'Citigroup Inc.', assetType: 'STOCK' },
-  GLD: { assetName: 'SPDR Gold Shares', assetType: 'ETF' },
+  CNY: { assetName: 'Chinese Yuan', assetType: 'FOREX' },
+  GLD: { assetName: 'SPDR Gold Shares', assetType: 'COMMODITY ETF' },
+  IEF: { assetName: 'iShares 7-10 Year Treasury Bond', assetType: 'BOND ETF' },
   META: { assetName: 'Meta Platforms Inc.', assetType: 'STOCK' },
   MSFT: { assetName: 'Microsoft Corp.', assetType: 'STOCK' },
   NVDA: { assetName: 'NVIDIA Corp.', assetType: 'STOCK' },
-  QQQ: { assetName: 'Invesco QQQ Trust', assetType: 'ETF' },
-  SLV: { assetName: 'iShares Silver Trust', assetType: 'ETF' },
-  SPY: { assetName: 'SPDR S&P 500 ETF Trust', assetType: 'ETF' },
-  TLT: { assetName: 'iShares 20+ Year Treasury Bond ETF', assetType: 'ETF' },
+  QQQ: { assetName: 'Invesco QQQ Trust', assetType: 'EQUITY ETF' },
+  SLV: { assetName: 'iShares Silver Trust', assetType: 'COMMODITY ETF' },
+  SPY: { assetName: 'SPDR S&P 500 ETF Trust', assetType: 'EQUITY ETF' },
+  TLT: { assetName: 'iShares 20+ Year Treasury Bond', assetType: 'BOND ETF' },
   TSLA: { assetName: 'Tesla Inc.', assetType: 'STOCK' },
-  VNQ: { assetName: 'Vanguard Real Estate Index Fund', assetType: 'ETF' },
-  VOO: { assetName: 'Vanguard S&P 500 ETF', assetType: 'ETF' }
+  USD: { assetName: 'US Dollar', assetType: 'FOREX' },
+  USO: { assetName: 'United States Oil Fund', assetType: 'COMMODITY ETF' },
+  VNQ: { assetName: 'Vanguard Real Estate ETF', assetType: 'REAL ESTATE ETF' },
+  VOO: { assetName: 'Vanguard S&P 500 ETF', assetType: 'EQUITY ETF' }
 }
 
 const HISTORY_TICKER_ALIASES = {
@@ -746,6 +770,16 @@ export default {
           value,
           color: ALLOCATION_COLORS[index % ALLOCATION_COLORS.length],
           percentLabel: totalValue > 0 ? `${((value / totalValue) * 100).toFixed(1)}%` : '0.0%'
+        }))
+    },
+    availableAssetOptions() {
+      return Object.entries(TICKER_PRESETS)
+        .sort((first, second) => first[0].localeCompare(second[0]))
+        .map(([ticker, preset]) => ({
+          ticker,
+          label: `${ticker} — ${preset.assetName}`,
+          assetName: preset.assetName,
+          assetType: preset.assetType
         }))
     },
     selectedHistoryMetricLabel() {
@@ -940,6 +974,8 @@ export default {
       }
     },
     closeAssetDetails() {
+      this.charts.detailPerformance?.dispose()
+      this.charts.detailPerformance = null
       this.selectedAsset = null
       this.selectedAssetQuote = null
       this.selectedAssetQuoteError = ''
@@ -984,12 +1020,8 @@ export default {
       if (!preset) {
         return
       }
-      if (!this.transactionForm.assetName) {
-        this.transactionForm.assetName = preset.assetName
-      }
-      if (!this.transactionForm.assetType) {
-        this.transactionForm.assetType = preset.assetType
-      }
+      this.transactionForm.assetName = preset.assetName
+      this.transactionForm.assetType = preset.assetType
       this.lookupTransactionCurrentPrice(ticker)
     },
     async lookupTransactionCurrentPrice(ticker) {
@@ -1572,13 +1604,18 @@ export default {
         return []
       }
 
-      return this.getFilteredHistoryPrices(history?.prices || [], range)
+      const basePoints = this.getFilteredHistoryPrices(history?.prices || [], range)
+      const filteredPoints = basePoints
         .filter(point => {
           if (!purchaseDate) {
             return true
           }
           return new Date(point.date) >= purchaseDate
         })
+
+      const pointsToUse = filteredPoints.length ? filteredPoints : basePoints
+
+      return pointsToUse
         .map(point => ({
           date: point.date,
           close: Number(point.close || 0),
@@ -1792,8 +1829,8 @@ export default {
         ticker: this.normalizeHistoryTicker(asset.ticker),
         series,
         delta: this.getHoldingTrendDelta(asset.ticker, '1M'),
-        firstClose: this.getHoldingTrendFirstClose(asset.ticker, '1M'),
-        lastClose: this.getHoldingTrendLastClose(asset.ticker, '1M'),
+        firstValue: this.getHoldingTrendFirstClose(asset.ticker, '1M'),
+        lastValue: this.getHoldingTrendLastClose(asset.ticker, '1M'),
         style: {
           left: `${left}px`,
           top: `${top}px`
@@ -2553,7 +2590,7 @@ a {
 
 .activity-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: 1.2fr 0.8fr 1.3fr 0.9fr 1fr;
   gap: 18px;
   align-items: start;
 }

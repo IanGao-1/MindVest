@@ -26,7 +26,7 @@ import java.util.stream.Collectors;
 @Service
 public class SampleDataService {
     private static final Set<String> SUPPORTED_TICKERS =
-            Arrays.stream(new String[]{"AAPL", "TSLA", "AMZN", "MSFT", "META", "NVDA", "C", "SPY", "GLD"})
+            Arrays.stream(new String[]{"AAPL", "TSLA", "AMZN", "MSFT", "META", "NVDA", "C", "SPY", "GLD", "CNY", "USD"})
                     .collect(Collectors.toSet());
 
     private static final LocalDate START_DATE = LocalDate.of(2025, 11, 5);
@@ -67,8 +67,8 @@ public class SampleDataService {
         assetRepository.deleteAll();
 
         seedStarterHolding("AAPL", "Apple Inc.", "STOCK", 10D);
-        seedStarterHolding("SPY", "SPDR S&P 500 ETF Trust", "ETF", 6D);
-        seedStarterHolding("GLD", "SPDR Gold Shares", "ETF", 8D);
+        seedStarterHolding("SPY", "SPDR S&P 500 ETF Trust", "EQUITY ETF", 6D);
+        seedStarterHolding("GLD", "SPDR Gold Shares", "COMMODITY ETF", 8D);
     }
 
     @Transactional

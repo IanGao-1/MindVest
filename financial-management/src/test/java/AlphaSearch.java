@@ -22,7 +22,7 @@ public class AlphaSearch {
 
         // ✅ 你要搜索的资产关键词（股票 + ETF + commodity）
         List<String> keywords = List.of(
-                "Apple"
+                "USD"
 //                "Tesla",
 //                "Microsoft",
 //                "Amazon",
