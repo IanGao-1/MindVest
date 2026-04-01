@@ -6,23 +6,23 @@
           <img src="/huifeng.png" alt="Huifeng logo" class="sidebar-logo">
         </div>
         <div>
-          <h2>Huifeng Capital</h2>
+          <h2>MindVest</h2>
           <p>Premium Tracker</p>
         </div>
       </div>
 
       <nav class="sidebar-nav">
-        <a class="sidebar-link is-active" href="#overview">
+        <a href="#overview" :class="['sidebar-link', { 'is-active': activeSection === 'overview' }]">
           <span class="nav-icon nav-icon-dashboard"></span>
           <span>Dashboard</span>
         </a>
-        <a class="sidebar-link" href="#holdings">
+        <a href="#holdings" :class="['sidebar-link', { 'is-active': activeSection === 'holdings' }]">
           <span class="nav-icon nav-icon-holdings"></span>
           <span>Holdings</span>
         </a>
-        <a class="sidebar-link" href="#analytics">
+        <a href="#analytics" :class="['sidebar-link', { 'is-active': activeSection === 'analytics' }]">
           <span class="nav-icon nav-icon-analysis"></span>
-          <span>Analysis</span>
+          <span>History</span>
         </a>
       </nav>
 
@@ -54,9 +54,9 @@
         <div class="topbar-brand">
           <span class="wordmark">The Editorial Ledger</span>
           <nav class="topbar-nav">
-            <a href="#overview" class="topbar-link is-active">Overview</a>
-            <a href="#holdings" class="topbar-link">Holdings</a>
-            <a href="#analytics" class="topbar-link">Research</a>
+            <a href="#overview" :class="['topbar-link', { 'is-active': activeSection === 'overview' }]">Overview</a>
+            <a href="#holdings" :class="['topbar-link', { 'is-active': activeSection === 'holdings' }]">Holdings</a>
+            <a href="#analytics" :class="['topbar-link', { 'is-active': activeSection === 'analytics' }]">History</a>
           </nav>
         </div>
 
@@ -74,11 +74,13 @@
             <h1>Total Equity Value</h1>
             <div class="hero-value-row">
               <div class="hero-value">
-                <span class="hero-currency">{{ totalMarketValueParts.symbol }}</span>
-                <span>{{ totalMarketValueParts.amount }}</span>
+                <span class="hero-currency">$</span>
+                <span class="hero-major">{{ totalMarketValueParts.major }}</span>
+                <span class="hero-decimal">{{ totalMarketValueParts.decimal }}</span>
               </div>
-              <div class="hero-pill" :class="holdingValueClass(totalPnL)">
-                {{ formatSigned(totalPnL) }}
+              <div class="hero-pill" :class="['hero-pill-performance', holdingValueClass(totalPnL)]">
+                <span class="hero-pill-icon">↗</span>
+                <span>{{ formatPercent(totalCostBasis > 0 ? totalPnL / totalCostBasis : 0) }}</span>
               </div>
             </div>
             <p class="hero-note">
@@ -351,6 +353,21 @@
             <p>The transaction form now opens as a modal so the dashboard stays clean and editorial.</p>
           </article>
         </section>
+
+        <footer class="site-footer">
+          <span class="site-footer-copy">© 2026 MindVest, Inc.</span>
+          <nav class="site-footer-links">
+            <a href="#overview">Terms</a>
+            <a href="#overview">Privacy</a>
+            <a href="#analytics">Security</a>
+            <a href="#holdings">Status</a>
+            <a href="#analytics">Community</a>
+            <a href="#analytics">Docs</a>
+            <a href="#overview">Contact</a>
+            <a href="#overview">Manage cookies</a>
+            <a href="#overview">Do not share my personal information</a>
+          </nav>
+        </footer>
 
       </section>
 
@@ -709,6 +726,7 @@ export default {
       historyRange: '1M',
       historyMetric: 'open',
       portfolioTrendRange: '1M',
+      activeSection: 'overview',
       historyLoading: false,
       historyError: '',
       selectedHistory: null,
@@ -839,6 +857,8 @@ export default {
   },
   mounted() {
     this.loadDashboard()
+    this.updateActiveSection()
+    window.addEventListener('scroll', this.handleScroll, { passive: true })
     window.addEventListener('resize', this.handleResize)
   },
   watch: {
@@ -856,6 +876,7 @@ export default {
     }
   },
   beforeDestroy() {
+    window.removeEventListener('scroll', this.handleScroll)
     window.removeEventListener('resize', this.handleResize)
     Object.values(this.charts).forEach(chart => chart?.dispose())
   },
@@ -985,13 +1006,35 @@ export default {
       if (!this.selectedAsset) {
         return
       }
+      const asset = { ...this.selectedAsset }
       this.closeAssetDetails()
       this.openTransactionModal({
-        ticker: this.selectedAsset.ticker,
-        assetName: this.selectedAsset.name,
-        assetType: this.selectedAsset.type,
-        currentPrice: this.selectedAsset.currentPrice
+        ticker: asset.ticker,
+        assetName: asset.name,
+        assetType: asset.type,
+        currentPrice: asset.currentPrice
       })
+    },
+    handleScroll() {
+      this.updateActiveSection()
+    },
+    updateActiveSection() {
+      const sections = ['overview', 'holdings', 'analytics']
+      const offset = 140
+      let currentSection = sections[0]
+
+      sections.forEach(sectionId => {
+        const element = document.getElementById(sectionId)
+        if (!element) {
+          return
+        }
+        const top = element.getBoundingClientRect().top
+        if (top <= offset) {
+          currentSection = sectionId
+        }
+      })
+
+      this.activeSection = currentSection
     },
     setPortfolioTrendRange(range) {
       this.portfolioTrendRange = range
@@ -1111,15 +1154,18 @@ export default {
     formatCurrencyParts(value) {
       const formatted = this.formatCurrency(value)
       if (formatted === '--') {
-        return { symbol: '', amount: '--' }
+        return { symbol: '', major: '--', decimal: '' }
       }
       const match = formatted.match(/^([^\d-]+)(.+)$/)
       if (!match) {
-        return { symbol: '', amount: formatted }
+        return { symbol: '', major: formatted, decimal: '' }
       }
+      const numberPart = match[2]
+      const decimalIndex = numberPart.lastIndexOf('.')
       return {
         symbol: match[1],
-        amount: match[2]
+        major: decimalIndex >= 0 ? numberPart.slice(0, decimalIndex) : numberPart,
+        decimal: decimalIndex >= 0 ? numberPart.slice(decimalIndex) : ''
       }
     },
     formatCompactCurrency(value) {
@@ -1253,13 +1299,13 @@ export default {
             symbolSize: 8,
             lineStyle: {
               width: 3,
-              color: '#db3f16'
+              color: '#ba1a1a'
             },
             itemStyle: {
-              color: '#db3f16'
+              color: '#ba1a1a'
             },
             areaStyle: {
-              color: 'rgba(219, 63, 22, 0.12)'
+              color: 'rgba(186, 26, 26, 0.12)'
             },
             data: quoteSeries
           }
@@ -1312,7 +1358,7 @@ export default {
             }
 
             const numericValue = Number(point.value || 0)
-            const valueColor = numericValue < 0 ? '#2e8b57' : '#db3f16'
+            const valueColor = numericValue < 0 ? '#1f8a52' : '#ba1a1a'
 
             return `
               <div style="min-width: 126px;">
@@ -1351,13 +1397,13 @@ export default {
             showSymbol: false,
             lineStyle: {
               width: 3,
-              color: '#db3f16'
+              color: '#ba1a1a'
             },
             itemStyle: {
-              color: '#db3f16'
+              color: '#ba1a1a'
             },
             areaStyle: {
-              color: 'rgba(219, 63, 22, 0.12)'
+              color: 'rgba(186, 26, 26, 0.12)'
             },
             data: metricSeries
           }
@@ -1379,7 +1425,7 @@ export default {
       const pnlSeries = points.map(point => Number(point.pnl || 0))
       const range = this.buildChartRange(pnlSeries)
       const latestPnl = pnlSeries[pnlSeries.length - 1] || 0
-      const trendColor = latestPnl >= 0 ? '#db3f16' : '#8f3a2d'
+      const trendColor = latestPnl >= 0 ? '#ba1a1a' : '#1f8a52'
 
       chart.setOption({
         tooltip: {
@@ -1413,7 +1459,7 @@ export default {
             lineStyle: { width: 3, color: trendColor },
             itemStyle: { color: trendColor },
             areaStyle: {
-              color: latestPnl >= 0 ? 'rgba(219, 63, 22, 0.12)' : 'rgba(143, 58, 45, 0.12)'
+              color: latestPnl >= 0 ? 'rgba(186, 26, 26, 0.12)' : 'rgba(31, 138, 82, 0.12)'
             },
             markLine: {
               symbol: 'none',
@@ -1592,67 +1638,118 @@ export default {
       const purchaseDate = new Date(asset.purchaseDate)
       return Number.isNaN(purchaseDate.getTime()) ? null : purchaseDate
     },
-    getHoldingTrendPoints(ticker, range = this.historyRange) {
-      const asset = this.getAssetSnapshot(ticker)
+    getTickerTransactions(ticker) {
+      const normalizedTicker = this.normalizeHistoryTicker(ticker)
+      return this.transactions
+        .filter(transaction => this.normalizeHistoryTicker(transaction.ticker) === normalizedTicker)
+        .slice()
+        .sort((first, second) => {
+          const firstTime = new Date(first.transactionDate).getTime()
+          const secondTime = new Date(second.transactionDate).getTime()
+          if (firstTime !== secondTime) {
+            return firstTime - secondTime
+          }
+          return Number(first.id || 0) - Number(second.id || 0)
+        })
+    },
+    getDayKey(value) {
+      const date = value instanceof Date ? value : new Date(value)
+      if (Number.isNaN(date.getTime())) {
+        return ''
+      }
+      const year = date.getFullYear()
+      const month = String(date.getMonth() + 1).padStart(2, '0')
+      const day = String(date.getDate()).padStart(2, '0')
+      return `${year}-${month}-${day}`
+    },
+    buildReplaySeries(ticker, range = this.historyRange) {
       const normalizedTicker = this.normalizeHistoryTicker(ticker)
       const history = this.holdingTrendHistories[normalizedTicker]
-      const purchaseDate = this.getAssetPurchaseDate(ticker)
-      const quantity = Number(asset?.quantity || 0)
-      const avgCost = Number(asset?.avgCost || 0)
+      const historyPoints = this.getFilteredHistoryPrices(history?.prices || [], range)
+      const transactions = this.getTickerTransactions(normalizedTicker)
 
-      if (!asset || !history || quantity <= 0) {
+      if (!historyPoints.length || !transactions.length) {
         return []
       }
 
-      const basePoints = this.getFilteredHistoryPrices(history?.prices || [], range)
-      const filteredPoints = basePoints
-        .filter(point => {
-          if (!purchaseDate) {
-            return true
+      const transactionDayKeys = transactions.map(transaction => this.getDayKey(transaction.transactionDate)).filter(Boolean)
+      const firstTransactionDay = transactionDayKeys[0] || ''
+      const filteredHistoryPoints = historyPoints.filter(point => point.date >= firstTransactionDay)
+      const pointsToUse = filteredHistoryPoints.length ? filteredHistoryPoints : historyPoints
+
+      let quantity = 0
+      let costBasis = 0
+      let realizedPnl = 0
+      let transactionIndex = 0
+      const replaySeries = []
+
+      pointsToUse.forEach(point => {
+        while (
+          transactionIndex < transactions.length &&
+          this.getDayKey(transactions[transactionIndex].transactionDate) <= point.date
+        ) {
+          const transaction = transactions[transactionIndex]
+          const transactionQuantity = Number(transaction.quantity || 0)
+          const transactionPrice = Number(transaction.price || 0)
+          const transactionType = String(transaction.transactionType || '').toUpperCase()
+
+          if (transactionType === 'BUY') {
+            quantity += transactionQuantity
+            costBasis += transactionQuantity * transactionPrice
+          } else if (transactionType === 'SELL' && quantity > 0) {
+            const avgCostBeforeSell = quantity > 0 ? costBasis / quantity : 0
+            const sellQuantity = Math.min(transactionQuantity, quantity)
+            realizedPnl += sellQuantity * (transactionPrice - avgCostBeforeSell)
+            quantity -= sellQuantity
+            costBasis -= sellQuantity * avgCostBeforeSell
+            if (quantity <= 0.0000001) {
+              quantity = 0
+              costBasis = 0
+            }
           }
-          return new Date(point.date) >= purchaseDate
-        })
 
-      const pointsToUse = filteredPoints.length ? filteredPoints : basePoints
+          transactionIndex += 1
+        }
 
-      return pointsToUse
-        .map(point => ({
+        const close = Number(point.close || 0)
+        const unrealizedPnl = close * quantity - costBasis
+        replaySeries.push({
           date: point.date,
-          close: Number(point.close || 0),
-          pnl: (Number(point.close || 0) - avgCost) * quantity
-        }))
+          close,
+          quantity,
+          costBasis,
+          realizedPnl,
+          unrealizedPnl,
+          pnl: realizedPnl + unrealizedPnl
+        })
+      })
+
+      return replaySeries.filter(point => point.quantity > 0 || Math.abs(point.realizedPnl) > 0.0000001)
+    },
+    getHoldingTrendPoints(ticker, range = this.historyRange) {
+      return this.buildReplaySeries(ticker, range)
     },
     getPortfolioPnlTrendPoints(range = '1M') {
-      const normalizedAssets = this.assets
-        .map(asset => ({
-          ticker: this.normalizeHistoryTicker(asset.ticker),
-          quantity: Number(asset.quantity || 0),
-          avgCost: Number(asset.avgCost || 0),
-          purchaseDate: asset.purchaseDate ? new Date(asset.purchaseDate) : null
-        }))
-        .filter(asset => asset.ticker && asset.quantity > 0)
+      const normalizedTickers = [...new Set(
+        this.transactions
+          .map(transaction => this.normalizeHistoryTicker(transaction.ticker))
+          .filter(Boolean)
+      )]
 
-      if (!normalizedAssets.length) {
+      if (!normalizedTickers.length) {
         return []
       }
 
       const dateSet = new Set()
       const assetSeriesMap = {}
 
-      normalizedAssets.forEach(asset => {
-        const history = this.holdingTrendHistories[asset.ticker]
-        const series = this.getFilteredHistoryPrices(history?.prices || [], range)
-          .filter(point => {
-            if (!asset.purchaseDate || Number.isNaN(asset.purchaseDate.getTime())) {
-              return true
-            }
-            return new Date(point.date) >= asset.purchaseDate
-          })
+      normalizedTickers.forEach(ticker => {
+        const series = this.buildReplaySeries(ticker, range)
         if (!series.length) {
           return
         }
 
-        assetSeriesMap[asset.ticker] = series
+        assetSeriesMap[ticker] = series
         series.forEach(point => dateSet.add(point.date))
       })
 
@@ -1664,14 +1761,13 @@ export default {
       return sortedDates.map(date => {
         let totalPnl = 0
 
-        normalizedAssets.forEach(asset => {
-          const series = assetSeriesMap[asset.ticker] || []
-          const closingPoint = this.getLatestHistoryPointByDate(series, date)
-          if (!closingPoint) {
+        Object.values(assetSeriesMap).forEach(series => {
+          const replayPoint = this.getLatestHistoryPointByDate(series, date)
+          if (!replayPoint) {
             return
           }
 
-          totalPnl += (Number(closingPoint.close || 0) - asset.avgCost) * asset.quantity
+          totalPnl += Number(replayPoint.pnl || 0)
         })
 
         return {
@@ -1712,7 +1808,7 @@ export default {
       const pnlSeries = pnlPoints.map(point => Number(point.pnl || 0))
       const pnlRange = this.buildChartRange(pnlSeries)
       const latestPnl = pnlSeries.length ? pnlSeries[pnlSeries.length - 1] : 0
-      const trendColor = latestPnl >= 0 ? '#db3f16' : '#8f3a2d'
+      const trendColor = latestPnl >= 0 ? '#ba1a1a' : '#1f8a52'
 
       chart.setOption({
         tooltip: {
@@ -1746,7 +1842,7 @@ export default {
             lineStyle: { width: 3, color: trendColor },
             itemStyle: { color: trendColor },
             areaStyle: {
-              color: latestPnl >= 0 ? 'rgba(219, 63, 22, 0.12)' : 'rgba(143, 58, 45, 0.12)'
+              color: latestPnl >= 0 ? 'rgba(186, 26, 26, 0.12)' : 'rgba(31, 138, 82, 0.12)'
             },
             markLine: {
               symbol: 'none',
@@ -1881,8 +1977,8 @@ export default {
   --primary: #a30113;
   --primary-soft: #ffdad6;
   --outline: rgba(228, 190, 186, 0.4);
-  --gain: #00557a;
-  --loss: #ba1a1a;
+  --gain: #ba1a1a;
+  --loss: #1f8a52;
 }
 
 * {
@@ -1923,9 +2019,13 @@ a {
   position: sticky;
   top: 0;
   height: 100vh;
-  background: rgba(255, 255, 255, 0.88);
+  background:
+    radial-gradient(circle at top left, rgba(163, 1, 19, 0.12), transparent 34%),
+    linear-gradient(180deg, #fffdfc 0%, #f6f0ed 100%);
   backdrop-filter: blur(24px);
-  padding: 32px 20px;
+  border-right: 1px solid rgba(163, 1, 19, 0.08);
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.65);
+  padding: 32px 22px;
   display: flex;
   flex-direction: column;
   gap: 28px;
@@ -1935,13 +2035,16 @@ a {
   display: flex;
   align-items: center;
   gap: 14px;
+  padding: 8px 6px 18px;
+  border-bottom: 1px solid rgba(163, 1, 19, 0.08);
 }
 
 .sidebar-mark {
   width: 48px;
   height: 48px;
-  border-radius: 16px;
-  background: var(--primary);
+  border-radius: 18px;
+  background: linear-gradient(135deg, var(--primary), #d7462f);
+  box-shadow: 0 14px 28px rgba(163, 1, 19, 0.18);
   display: grid;
   place-items: center;
 }
@@ -1963,10 +2066,11 @@ a {
 
 .sidebar-brand h2 {
   margin: 0;
-  font-size: 0.95rem;
+  font-size: 1rem;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.14em;
   font-weight: 800;
+  color: #7f0d18;
 }
 
 .sidebar-brand p {
@@ -1979,31 +2083,40 @@ a {
 
 .sidebar-nav {
   display: grid;
-  gap: 6px;
+  gap: 8px;
 }
 
 .sidebar-link {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px 14px;
-  border-radius: 999px;
+  gap: 12px;
+  padding: 13px 14px;
+  border-radius: 16px;
   font-size: 0.78rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.12em;
   color: var(--muted);
+  transition: background-color 160ms ease, color 160ms ease, transform 160ms ease;
 }
 
 .sidebar-link.is-active {
   color: var(--primary);
-  background: var(--surface-low);
+  background: rgba(163, 1, 19, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(163, 1, 19, 0.08);
+}
+
+.sidebar-link:hover {
+  background: rgba(163, 1, 19, 0.05);
+  transform: translateX(2px);
 }
 
 .sidebar-actions {
   margin-top: auto;
   display: grid;
   gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(163, 1, 19, 0.08);
 }
 
 .sidebar-footlinks {
@@ -2026,13 +2139,21 @@ a {
   letter-spacing: 0.12em;
 }
 
+.sidebar-footlink:hover {
+  color: var(--primary);
+}
+
 .nav-icon {
   width: 18px;
   height: 18px;
-  border-radius: 4px;
-  background: var(--surface-mid);
+  border-radius: 6px;
+  background: rgba(69, 82, 91, 0.1);
   position: relative;
   flex: 0 0 auto;
+}
+
+.sidebar-link.is-active .nav-icon {
+  background: rgba(163, 1, 19, 0.14);
 }
 
 .nav-icon-dashboard::before,
@@ -2181,6 +2302,20 @@ a {
   cursor: pointer;
 }
 
+.sidebar-actions .sidebar-primary:first-child {
+  padding: 14px 18px;
+  background: linear-gradient(135deg, var(--primary), #c72628);
+  color: #fff;
+}
+
+.sidebar-actions .sidebar-primary:not(:first-child),
+.sidebar-actions .sidebar-secondary {
+  padding: 11px 16px;
+  background: #ece9e7;
+  color: #3e454c;
+  box-shadow: none;
+}
+
 .editorial-main {
   min-width: 0;
 }
@@ -2268,38 +2403,57 @@ a {
 .section-tag {
   display: block;
   margin-bottom: 10px;
-  color: var(--primary);
-  font-size: 0.66rem;
+  color: #7d8997;
+  font-size: 0.72rem;
   font-weight: 800;
-  letter-spacing: 0.22em;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
 }
 
 .hero-ledger h1 {
   margin: 0;
-  font-size: 1.75rem;
-  line-height: 1.02;
-  letter-spacing: -0.03em;
+  font-size: 1rem;
+  line-height: 1.1;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #7d8997;
+  font-weight: 700;
 }
 
 .hero-value-row {
   display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-top: 10px;
+  align-items: flex-end;
+  gap: 18px;
+  margin-top: 14px;
 }
 
 .hero-value {
   font-family: 'Manrope', sans-serif;
-  font-size: 4.5rem;
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  font-size: 4.9rem;
   font-weight: 800;
   letter-spacing: -0.06em;
+  line-height: 0.9;
+  color: #161819;
 }
 
 .hero-currency {
-  font-size: 0.48em;
-  vertical-align: top;
-  margin-right: 6px;
+  font-size: 0.72em;
+  line-height: 0.92;
+}
+
+.hero-major {
+  line-height: 0.9;
+}
+
+.hero-decimal {
+  font-size: 0.46em;
+  line-height: 1.05;
+  color: #97a1af;
+  letter-spacing: -0.04em;
+  padding-bottom: 7px;
 }
 
 .hero-pill {
@@ -2308,6 +2462,24 @@ a {
   background: #d7e4ec;
   font-size: 0.78rem;
   font-weight: 700;
+}
+
+.hero-pill-performance {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 18px;
+  margin-bottom: 10px;
+  background: #eaf3f8;
+  color: var(--gain);
+  font-family: 'Manrope', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.hero-pill-icon {
+  font-size: 0.9rem;
+  line-height: 1;
 }
 
 .hero-note {
@@ -2641,6 +2813,36 @@ a {
 .insight-card-primary .section-tag,
 .insight-card-primary p {
   color: rgba(255, 255, 255, 0.82);
+}
+
+.site-footer {
+  margin-top: 36px;
+  padding: 26px 0 8px;
+  border-top: 1px solid rgba(163, 1, 19, 0.08);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 28px;
+  align-items: center;
+  color: #68727f;
+  font-size: 0.94rem;
+}
+
+.site-footer-copy {
+  font-weight: 500;
+}
+
+.site-footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 28px;
+}
+
+.site-footer a {
+  color: inherit;
+}
+
+.site-footer a:hover {
+  color: var(--primary);
 }
 
 .research-controls {
@@ -3210,6 +3412,13 @@ a {
     width: 100%;
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .site-footer,
+  .site-footer-links {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
   }
 
   .activity-grid {
