@@ -15,13 +15,37 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
 public class AssetService {
+    private static final Map<String, String> NORMALIZED_ASSET_TYPES = Arrays.stream(new String[][]{
+            {"AAPL", "STOCK"},
+            {"TSLA", "STOCK"},
+            {"C", "STOCK"},
+            {"MSFT", "STOCK"},
+            {"AMZN", "STOCK"},
+            {"META", "STOCK"},
+            {"NVDA", "STOCK"},
+            {"SPY", "EQUITY ETF"},
+            {"VOO", "EQUITY ETF"},
+            {"QQQ", "EQUITY ETF"},
+            {"BND", "BOND ETF"},
+            {"TLT", "BOND ETF"},
+            {"IEF", "BOND ETF"},
+            {"GLD", "COMMODITY ETF"},
+            {"SLV", "COMMODITY ETF"},
+            {"USO", "COMMODITY ETF"},
+            {"VNQ", "REAL ESTATE ETF"},
+            {"CNY", "FOREX"},
+            {"USD", "FOREX"}
+    }).collect(Collectors.toMap(values -> values[0], values -> values[1]));
 
     @Autowired
     private AssetRepository assetRepository;
@@ -187,6 +211,7 @@ public class AssetService {
     private AssetDTO convertToDTO(Asset asset) {
         AssetDTO assetDTO = new AssetDTO();
         BeanUtils.copyProperties(asset, assetDTO);
+        assetDTO.setType(normalizeAssetType(asset.getTicker(), asset.getType()));
         BigDecimal costBasis = multiply(asset.getQuantity(), asset.getAvgCost());
         BigDecimal currentValue = multiply(asset.getQuantity(), asset.getCurrentPrice());
         BigDecimal unrealizedPnL = currentValue.subtract(costBasis);
@@ -198,6 +223,18 @@ public class AssetService {
         assetDTO.setUnrealizedPnL(unrealizedPnL.doubleValue());
         assetDTO.setUnrealizedPnLRate(unrealizedPnLRate.doubleValue());
         return assetDTO;
+    }
+
+    private String normalizeAssetType(String ticker, String currentType) {
+        String normalizedTicker = ticker == null ? "" : ticker.trim().toUpperCase(Locale.ROOT);
+        String mappedType = NORMALIZED_ASSET_TYPES.get(normalizedTicker);
+        if (mappedType == null) {
+            return currentType;
+        }
+        if (currentType == null || currentType.trim().isEmpty() || "ETF".equalsIgnoreCase(currentType.trim()) || "STOCK".equalsIgnoreCase(currentType.trim())) {
+            return mappedType;
+        }
+        return currentType;
     }
 
     private Asset convertToEntity(AssetDTO assetDTO) {
