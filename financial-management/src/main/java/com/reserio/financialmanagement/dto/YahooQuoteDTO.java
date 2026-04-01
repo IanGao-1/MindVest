@@ -16,6 +16,7 @@ public class YahooQuoteDTO {
     private BigDecimal previousClose;
     private BigDecimal dayLow;
     private BigDecimal dayHigh;
+    private Long volume;
 
     public String getSymbol() {
         return symbol;
@@ -119,5 +120,13 @@ public class YahooQuoteDTO {
 
     public void setDayHigh(BigDecimal dayHigh) {
         this.dayHigh = dayHigh;
+    }
+
+    public Long getVolume() {
+        return volume;
+    }
+
+    public void setVolume(Long volume) {
+        this.volume = volume;
     }
 }

@@ -96,6 +96,7 @@ public class MarketDataService {
             dto.setPreviousClose(quote.getPreviousClose());
             dto.setDayLow(quote.getDayLow());
             dto.setDayHigh(quote.getDayHigh());
+            dto.setVolume(quote.getVolume());
             return dto;
         } catch (Exception ex) {
             return getFallbackQuote(normalizedTicker);
@@ -253,6 +254,48 @@ public class MarketDataService {
             }
             return dto;
         } catch (RestClientException ex) {
+            return getLocalHistoryQuote(ticker);
+        }
+    }
+
+    private YahooQuoteDTO getLocalHistoryQuote(String ticker) {
+        try {
+            JsonNode historyJson = getLocalHistoryJson(ticker);
+            JsonNode prices = historyJson.path("prices");
+            if (!prices.isArray() || prices.isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Local history quote not found for ticker: " + ticker);
+            }
+
+            JsonNode latestPoint = prices.get(0);
+            JsonNode previousPoint = prices.size() > 1 ? prices.get(1) : latestPoint;
+
+            BigDecimal latestClose = latestPoint.hasNonNull("close") ? latestPoint.path("close").decimalValue() : null;
+            BigDecimal previousClose = previousPoint.hasNonNull("close") ? previousPoint.path("close").decimalValue() : latestClose;
+            BigDecimal latestOpen = latestPoint.hasNonNull("open") ? latestPoint.path("open").decimalValue() : latestClose;
+            BigDecimal latestHigh = latestPoint.hasNonNull("high") ? latestPoint.path("high").decimalValue() : latestClose;
+            BigDecimal latestLow = latestPoint.hasNonNull("low") ? latestPoint.path("low").decimalValue() : latestClose;
+            BigDecimal change = latestClose != null && previousClose != null ? latestClose.subtract(previousClose) : BigDecimal.ZERO;
+            BigDecimal changeInPercent = previousClose == null || previousClose.compareTo(BigDecimal.ZERO) == 0
+                    ? BigDecimal.ZERO
+                    : change.multiply(BigDecimal.valueOf(100)).divide(previousClose, 4, RoundingMode.HALF_UP);
+
+            YahooQuoteDTO dto = new YahooQuoteDTO();
+            dto.setSymbol(normalizeTicker(ticker));
+            dto.setName(normalizeTicker(ticker));
+            dto.setSource("local-history");
+            dto.setPrice(latestClose);
+            dto.setChange(change);
+            dto.setChangeInPercent(changeInPercent);
+            dto.setOpen(latestOpen);
+            dto.setPreviousClose(previousClose);
+            dto.setDayLow(latestLow);
+            dto.setDayHigh(latestHigh);
+            dto.setVolume(latestPoint.hasNonNull("volume") ? latestPoint.path("volume").asLong() : null);
+            dto.setLatestTimestamp(historyJson.path("lastRefreshed").asText(null));
+            return dto;
+        } catch (ResponseStatusException ex) {
+            throw ex;
+        } catch (Exception ex) {
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Failed to fetch market data from fallback API", ex);
         }
     }
@@ -268,6 +311,20 @@ public class MarketDataService {
         YahooQuoteDTO quote = fetchFinnhubQuote(normalizedTicker);
         quoteCache.put(normalizedTicker, new CachedQuote(quote, now));
         return quote;
+    }
+
+    private Long getLatestLocalHistoryVolume(String ticker) {
+        try {
+            JsonNode historyJson = getLocalHistoryJson(ticker);
+            JsonNode prices = historyJson.path("prices");
+            if (!prices.isArray() || prices.isEmpty()) {
+                return null;
+            }
+            JsonNode latestPoint = prices.get(0);
+            return latestPoint.hasNonNull("volume") ? latestPoint.path("volume").asLong() : null;
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private YahooQuoteDTO fetchFinnhubQuote(String ticker) {
@@ -294,6 +351,7 @@ public class MarketDataService {
             dto.setPreviousClose(getDecimal(response.get("pc")));
             dto.setDayLow(getDecimal(response.get("l")));
             dto.setDayHigh(getDecimal(response.get("h")));
+            dto.setVolume(getLatestLocalHistoryVolume(ticker));
             Long timestampValue = convertTimestampValue(response.get("t"));
             dto.setLatestTimestamp(timestampValue == null ? null : Instant.ofEpochMilli(timestampValue)
                     .atZone(ZoneId.of("Asia/Shanghai"))
