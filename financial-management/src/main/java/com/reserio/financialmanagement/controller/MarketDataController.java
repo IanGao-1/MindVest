@@ -4,6 +4,7 @@ import com.reserio.financialmanagement.dto.HoldingValueHistoryDTO;
 import com.reserio.financialmanagement.dto.MarketHistoryPointDTO;
 import com.reserio.financialmanagement.dto.ValueHistoryPointDTO;
 import com.reserio.financialmanagement.dto.YahooQuoteDTO;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.reserio.financialmanagement.service.MarketDataService;
 import com.reserio.financialmanagement.service.PortfolioAnalyticsService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -41,6 +42,12 @@ public class MarketDataController {
     @GetMapping("/history/{ticker}")
     public ResponseEntity<java.util.List<MarketHistoryPointDTO>> getPriceHistory(@PathVariable String ticker) {
         return ResponseEntity.ok(marketDataService.getPriceHistory(ticker));
+    }
+
+    @Operation(summary = "Get local history JSON by ticker")
+    @GetMapping("/history-json/{ticker}")
+    public ResponseEntity<JsonNode> getLocalHistoryJson(@PathVariable String ticker) {
+        return ResponseEntity.ok(marketDataService.getLocalHistoryJson(ticker));
     }
 
     @Operation(summary = "Get value history for each current holding")

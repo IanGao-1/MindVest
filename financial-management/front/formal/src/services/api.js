@@ -64,3 +64,7 @@ export function fetchPortfolioHistory() {
 export function fetchQuote(ticker) {
   return request(`/market-data/yahoo/${encodeURIComponent(ticker)}`)
 }
+
+export function fetchHistoryJson(ticker) {
+  return request(`/market-data/history-json/${encodeURIComponent(ticker)}`)
+}

@@ -2,6 +2,8 @@ package com.reserio.financialmanagement.service;
 
 import com.reserio.financialmanagement.dto.MarketHistoryPointDTO;
 import com.reserio.financialmanagement.dto.YahooQuoteDTO;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.reserio.financialmanagement.model.Asset;
 import com.reserio.financialmanagement.repository.AssetRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -9,6 +11,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
@@ -34,6 +37,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+import java.io.IOException;
+import java.io.InputStream;
 
 @Service
 public class MarketDataService {
@@ -52,6 +57,9 @@ public class MarketDataService {
 
     @Autowired
     private AssetRepository assetRepository;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     private final RestTemplate restTemplate = new RestTemplate();
     private final Map<String, CachedQuote> quoteCache = new ConcurrentHashMap<>();
@@ -137,6 +145,22 @@ public class MarketDataService {
             return history;
         } catch (RestClientException ex) {
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Failed to fetch market data history", ex);
+        }
+    }
+
+    public JsonNode getLocalHistoryJson(String ticker) {
+        String normalizedTicker = normalizeLocalHistoryTicker(ticker);
+        ClassPathResource resource = new ClassPathResource("data/history/" + normalizedTicker + ".json");
+
+        if (!resource.exists()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Local history not found for ticker: " + normalizedTicker);
+        }
+
+        try (InputStream inputStream = resource.getInputStream()) {
+            return objectMapper.readTree(inputStream);
+        } catch (IOException ex) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Failed to read local history for ticker: " + normalizedTicker, ex);
         }
     }
 
@@ -383,6 +407,14 @@ public class MarketDataService {
 
     private String normalizeTicker(String ticker) {
         return ticker == null ? "" : ticker.trim().toUpperCase();
+    }
+
+    private String normalizeLocalHistoryTicker(String ticker) {
+        String normalizedTicker = normalizeTicker(ticker);
+        if ("APPL".equals(normalizedTicker)) {
+            return "AAPL";
+        }
+        return normalizedTicker;
     }
 
     private static class CachedQuote {
