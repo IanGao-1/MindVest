@@ -71,3 +71,7 @@ export function chatWithAi(payload) {
     body: JSON.stringify(payload)
   })
 }
+
+export function fetchHistoryJson(ticker) {
+  return request(`/market-data/history-json/${encodeURIComponent(ticker)}`)
+}

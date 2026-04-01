@@ -1,10 +1,15 @@
 <template>
-  <div id="app">
-    <div class="app-shell">
-      <section class="hero">
-      <div>
+  <div id="app" class="app-shell">
+    <section class="hero">
+      <div class="hero-brand">
+        <div class="brand-badge">
+          <img src="/huifeng.png" alt="Huifeng logo" class="brand-logo">
+          <div>
+            <p class="eyebrow">Huifeng Capital</p>
+            <h1>Assets, Transactions and Market Snapshot</h1>
+          </div>
+        </div>
         <p class="eyebrow">Financial Management Dashboard</p>
-        <h1>Assets, Transactions and Market Snapshot</h1>
         <p class="hero-copy">
           Asset now represents your current holdings. You can manually add buy and
           sell transactions below, and the backend will automatically update your holdings.
@@ -121,18 +126,57 @@
             <h2>Portfolio Value History</h2>
           </div>
         </div>
+        <form class="history-form" @submit.prevent="handleHistorySearch">
+          <label>
+            <span>Ticker</span>
+            <input
+              v-model.trim="historyTickerInput"
+              type="text"
+              placeholder="AAPL"
+            >
+          </label>
+          <label>
+            <span>Range</span>
+            <select v-model="historyRange">
+              <option value="1M">1 Month</option>
+              <option value="6M">6 Months</option>
+            </select>
+          </label>
+          <button type="submit" :disabled="historyLoading">
+            {{ historyLoading ? 'Loading...' : 'Search' }}
+          </button>
+        </form>
+        <div v-if="historyError" class="inline-error">{{ historyError }}</div>
+        <div v-else-if="selectedHistoryMeta" class="history-summary">
+          <div class="metric-box">
+            <span>Ticker</span>
+            <strong>{{ selectedHistoryMeta.symbol }}</strong>
+          </div>
+          <div class="metric-box">
+            <span>Range</span>
+            <strong>{{ historyRangeLabel }}</strong>
+          </div>
+          <div class="metric-box">
+            <span>Latest Close</span>
+            <strong>{{ formatCurrency(selectedHistoryMeta.latestClose) }}</strong>
+          </div>
+          <div class="metric-box">
+            <span>Last Refreshed</span>
+            <strong>{{ selectedHistoryMeta.lastRefreshed }}</strong>
+          </div>
+        </div>
         <div ref="portfolioHistoryChart" class="chart chart-medium"></div>
       </article>
 
-      <article class="panel">
-        <div class="panel-heading">
-          <div>
-            <p class="panel-kicker">holdings</p>
-            <h2>Holdings Value History</h2>
-          </div>
-        </div>
-        <div ref="holdingsHistoryChart" class="chart chart-medium"></div>
-      </article>
+<!--      <article class="panel">-->
+<!--        <div class="panel-heading">-->
+<!--          <div>-->
+<!--            <p class="panel-kicker">holdings</p>-->
+<!--            <h2>Holdings Value History</h2>-->
+<!--          </div>-->
+<!--        </div>-->
+<!--        <div ref="holdingsHistoryChart" class="chart chart-medium"></div>-->
+<!--      </article>-->
     </section>
 
     <section class="tables-grid">
@@ -169,22 +213,28 @@
                 <td>{{ formatCurrency(asset.currentPrice) }}</td>
                 <td>{{ formatCurrency(asset.costBasis) }}</td>
                 <td>{{ formatCurrency(asset.currentValue) }}</td>
-                <td :class="valueClass(asset.unrealizedPnL)">
+                <td :class="holdingValueClass(asset.unrealizedPnL)">
                   {{ formatCurrency(asset.unrealizedPnL) }}
                   <span class="rate-copy">({{ formatPercent(asset.unrealizedPnLRate) }})</span>
                 </td>
                 <td class="trend-cell">
-                  <svg
-                    v-if="getHoldingTrendSeries(asset.ticker).length"
-                    class="sparkline"
-                    viewBox="0 0 120 36"
-                    preserveAspectRatio="none"
+                  <div
+                    v-if="getHoldingTrendSeries(asset.ticker, '1M').length"
+                    class="trend-hover-card"
+                    @mouseenter="showHoldingTrendPopover(asset, $event)"
+                    @mouseleave="hideHoldingTrendPopover"
                   >
-                    <path
-                      :d="sparklinePath(getHoldingTrendSeries(asset.ticker), 120, 36)"
-                      :class="['sparkline-path', valueClass(getLatestHoldingPnl(asset.ticker))]"
-                    />
-                  </svg>
+                    <svg
+                      class="sparkline"
+                      viewBox="0 0 96 28"
+                      preserveAspectRatio="none"
+                    >
+                      <path
+                        :d="sparklinePath(getHoldingTrendSeries(asset.ticker, '1M'), 96, 28)"
+                        :class="['sparkline-path', holdingValueClass(getHoldingTrendDelta(asset.ticker, '1M'))]"
+                      />
+                    </svg>
+                  </div>
                   <span v-else class="trend-empty">--</span>
                 </td>
               </tr>
@@ -193,6 +243,34 @@
         </div>
       </article>
     </section>
+
+    <div
+      v-if="hoveredTrend"
+      class="trend-floating-popover"
+      :style="hoveredTrend.style"
+    >
+      <div class="trend-popover-header">
+        <strong>{{ hoveredTrend.ticker }}</strong>
+        <span>1 Month Close</span>
+      </div>
+      <svg
+        class="sparkline sparkline-large"
+        viewBox="0 0 180 72"
+        preserveAspectRatio="none"
+      >
+        <path
+          :d="sparklinePath(hoveredTrend.series, 180, 72)"
+          :class="['sparkline-path', holdingValueClass(hoveredTrend.delta)]"
+        />
+      </svg>
+      <div class="trend-popover-meta">
+        <span>{{ formatCurrency(hoveredTrend.firstClose) }}</span>
+        <span :class="holdingValueClass(hoveredTrend.delta)">
+          {{ formatSigned(hoveredTrend.delta) }}
+        </span>
+        <span>{{ formatCurrency(hoveredTrend.lastClose) }}</span>
+      </div>
+    </div>
 
     <section class="panel full-width-panel">
       <div class="panel-heading">
@@ -268,110 +346,60 @@
       </form>
     </section>
 
-      <section class="panel">
-        <div class="panel-heading">
-          <div>
-            <p class="panel-kicker">transactions</p>
-            <h2>Transaction History</h2>
-          </div>
+    <section class="panel">
+      <div class="panel-heading">
+        <div>
+          <p class="panel-kicker">transactions</p>
+          <h2>Transaction History</h2>
         </div>
+      </div>
 
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Type</th>
-                <th>Ticker</th>
-                <th>Name</th>
-                <th>Quantity</th>
-                <th>Price</th>
-                <th>Total</th>
-                <th>Remaining</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="transaction in transactions" :key="transaction.id">
-                <td>{{ formatDateTime(transaction.transactionDate) }}</td>
-                <td :class="valueClass(transaction.transactionType === 'BUY' ? 1 : -1)">
-                  {{ transaction.transactionType }}
-                </td>
-                <td>{{ transaction.ticker }}</td>
-                <td>{{ transaction.assetName || '--' }}</td>
-                <td>{{ formatNumber(transaction.quantity) }}</td>
-                <td>{{ formatCurrency(transaction.price) }}</td>
-                <td>{{ formatCurrency(transaction.totalAmount) }}</td>
-                <td>{{ formatNumber(transaction.remainingQuantity) }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-    </div>
-
-    <button class="ai-fab" type="button" @click="toggleAiChat" :aria-expanded="aiChatOpen">
-      <img :src="aiIcon" alt="AI assistant">
-    </button>
-
-    <transition name="chat-pop">
-      <section v-if="aiChatOpen" class="ai-chat-panel">
-        <header class="ai-chat-header">
-          <div class="ai-chat-title">
-            <img :src="aiIcon" alt="AI icon">
-            <div>
-              <strong>AI Assistant</strong>
-              <p>Ask about your holdings, quotes, and recent portfolio activity.</p>
-            </div>
-          </div>
-          <button class="ai-close" type="button" @click="aiChatOpen = false">Close</button>
-        </header>
-
-        <div ref="aiChatMessages" class="ai-chat-messages">
-          <article
-            v-for="message in aiMessages"
-            :key="message.id"
-            :class="['ai-message', `ai-message-${message.role}`]"
-          >
-            <span class="ai-message-role">{{ message.role === 'user' ? 'You' : 'AI' }}</span>
-            <p>{{ message.content }}</p>
-          </article>
-        </div>
-
-        <div v-if="aiError" class="inline-error ai-error">{{ aiError }}</div>
-
-        <form class="ai-chat-form" @submit.prevent="submitAiPrompt">
-          <textarea
-            v-model.trim="aiPrompt"
-            rows="4"
-            placeholder="Ask the assistant to explain your portfolio, market quotes, or transaction ideas..."
-            :disabled="aiSubmitting"
-          ></textarea>
-          <div class="ai-chat-actions">
-            <button type="button" class="ghost-button" @click="clearAiChat" :disabled="aiSubmitting">Clear</button>
-            <button type="submit" :disabled="aiSubmitting || !aiPrompt">
-              {{ aiSubmitting ? 'Thinking...' : 'Send' }}
-            </button>
-          </div>
-        </form>
-      </section>
-    </transition>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Type</th>
+              <th>Ticker</th>
+              <th>Name</th>
+              <th>Quantity</th>
+              <th>Price</th>
+              <th>Total</th>
+              <th>Remaining</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="transaction in transactions" :key="transaction.id">
+              <td>{{ formatDateTime(transaction.transactionDate) }}</td>
+              <td :class="valueClass(transaction.transactionType === 'BUY' ? 1 : -1)">
+                {{ transaction.transactionType }}
+              </td>
+              <td>{{ transaction.ticker }}</td>
+              <td>{{ transaction.assetName || '--' }}</td>
+              <td>{{ formatNumber(transaction.quantity) }}</td>
+              <td>{{ formatCurrency(transaction.price) }}</td>
+              <td>{{ formatCurrency(transaction.totalAmount) }}</td>
+              <td>{{ formatNumber(transaction.remainingQuantity) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
   </div>
 </template>
 
 <script>
 import * as echarts from 'echarts'
 import {
-  chatWithAi,
   createTransaction,
   fetchAssets,
+  fetchHistoryJson,
   fetchHoldingsHistory,
   fetchPortfolioHistory,
   fetchQuote,
   fetchTransactions,
   resetSampleData
 } from './services/api'
-
-const AI_ICON = require('../../../src/main/resources/icon.png')
 
 const createEmptyTransactionForm = () => ({
   transactionType: 'BUY',
@@ -387,36 +415,44 @@ const createEmptyTransactionForm = () => ({
 
 const TICKER_PRESETS = {
   AAPL: { assetName: 'Apple Inc.', assetType: 'STOCK' },
-  TSLA: { assetName: 'Tesla Inc.', assetType: 'STOCK' },
-  MSFT: { assetName: 'Microsoft Corp.', assetType: 'STOCK' },
   AMZN: { assetName: 'Amazon.com Inc.', assetType: 'STOCK' },
+  BND: { assetName: 'Vanguard Total Bond Market ETF', assetType: 'ETF' },
+  C: { assetName: 'Citigroup Inc.', assetType: 'STOCK' },
+  GLD: { assetName: 'SPDR Gold Shares', assetType: 'ETF' },
   META: { assetName: 'Meta Platforms Inc.', assetType: 'STOCK' },
+  MSFT: { assetName: 'Microsoft Corp.', assetType: 'STOCK' },
   NVDA: { assetName: 'NVIDIA Corp.', assetType: 'STOCK' },
-  C: { assetName: 'Citigroup Inc.', assetType: 'STOCK' }
+  QQQ: { assetName: 'Invesco QQQ Trust', assetType: 'ETF' },
+  SLV: { assetName: 'iShares Silver Trust', assetType: 'ETF' },
+  SPY: { assetName: 'SPDR S&P 500 ETF Trust', assetType: 'ETF' },
+  TLT: { assetName: 'iShares 20+ Year Treasury Bond ETF', assetType: 'ETF' },
+  TSLA: { assetName: 'Tesla Inc.', assetType: 'STOCK' },
+  VNQ: { assetName: 'Vanguard Real Estate Index Fund', assetType: 'ETF' },
+  VOO: { assetName: 'Vanguard S&P 500 ETF', assetType: 'ETF' }
 }
 
-const createAiGreeting = () => ({
-  id: 'ai-greeting',
-  role: 'assistant',
-  content: 'Hello, I can help explain your portfolio, quote moves, and recent transaction impact.'
-})
+const HISTORY_TICKER_ALIASES = {
+  APPL: 'AAPL'
+}
 
 export default {
   name: 'App',
   data() {
     return {
-      aiIcon: AI_ICON,
-      aiChatOpen: false,
-      aiPrompt: '',
-      aiSubmitting: false,
-      aiError: '',
-      aiMessages: [createAiGreeting()],
       assets: [],
       transactions: [],
       holdingsHistory: [],
       portfolioHistory: [],
       quote: null,
       tickerInput: 'TSLA',
+      historyTickerInput: 'AAPL',
+      historyRange: '1M',
+      historyLoading: false,
+      historyError: '',
+      selectedHistory: null,
+      selectedHistoryMeta: null,
+      holdingTrendHistories: {},
+      hoveredTrend: null,
       loading: false,
       quoteLoading: false,
       submittingTransaction: false,
@@ -444,6 +480,9 @@ export default {
     },
     quoteTrendClass() {
       return this.quote?.change >= 0 ? 'text-rise' : 'text-fall'
+    },
+    historyRangeLabel() {
+      return this.historyRange === '6M' ? '6 Months' : '1 Month'
     }
   },
   mounted() {
@@ -482,13 +521,6 @@ export default {
           ? portfolioHistoryResult.value
           : []
 
-        this.$nextTick(() => {
-          this.renderTypeChart()
-          this.renderPortfolioPnlChart()
-          this.renderPortfolioHistoryChart()
-          this.renderHoldingsHistoryChart()
-        })
-
         if (holdingsHistoryResult.status === 'rejected' || portfolioHistoryResult.status === 'rejected') {
           this.error = 'Historical charts are temporarily unavailable, but holdings and transactions loaded successfully.'
         }
@@ -496,79 +528,17 @@ export default {
         if (!this.quote) {
           await this.searchQuote()
         }
+        await this.loadHoldingTrendHistories()
+        this.$nextTick(() => {
+          this.renderTypeChart()
+          this.renderPortfolioPnlChart()
+          this.renderHoldingsHistoryChart()
+        })
+        await this.handleHistorySearch()
       } catch (error) {
         this.error = `Load failed: ${error.message || 'Unknown error'}`
       } finally {
         this.loading = false
-      }
-    },
-    toggleAiChat() {
-      this.aiChatOpen = !this.aiChatOpen
-      if (this.aiChatOpen) {
-        this.$nextTick(() => this.scrollAiChatToBottom())
-      }
-    },
-    clearAiChat() {
-      this.aiPrompt = ''
-      this.aiError = ''
-      this.aiMessages = [createAiGreeting()]
-      this.$nextTick(() => this.scrollAiChatToBottom())
-    },
-    async submitAiPrompt() {
-      if (!this.aiPrompt || this.aiSubmitting) {
-        return
-      }
-
-      const prompt = this.aiPrompt
-      this.aiPrompt = ''
-      this.aiError = ''
-      this.aiMessages.push({
-        id: `user-${Date.now()}`,
-        role: 'user',
-        content: prompt
-      })
-      this.$nextTick(() => this.scrollAiChatToBottom())
-
-      this.aiSubmitting = true
-      try {
-        const contextSummary = this.buildAiContextSummary()
-        const result = await chatWithAi({
-          message: `${contextSummary}\n\nUser question:\n${prompt}`,
-          systemPrompt: 'You are a financial dashboard assistant. Answer in concise, friendly Chinese unless the user clearly uses another language. When discussing investments, avoid promising returns and clearly describe uncertainty.'
-        })
-
-        this.aiMessages.push({
-          id: result.id || `assistant-${Date.now()}`,
-          role: 'assistant',
-          content: result.reply || 'No response returned.'
-        })
-      } catch (error) {
-        this.aiError = `AI request failed: ${error.message || 'Unknown error'}`
-      } finally {
-        this.aiSubmitting = false
-        this.$nextTick(() => this.scrollAiChatToBottom())
-      }
-    },
-    buildAiContextSummary() {
-      const assetSummary = this.assets.slice(0, 8).map(asset => (
-        `${asset.ticker || 'UNKNOWN'}: qty=${Number(asset.quantity || 0)}, value=${Number(asset.currentValue || 0).toFixed(2)}, pnl=${Number(asset.unrealizedPnL || 0).toFixed(2)}`
-      )).join('; ')
-
-      const transactionSummary = this.transactions.slice(0, 5).map(transaction => (
-        `${transaction.transactionType} ${transaction.ticker} qty=${Number(transaction.quantity || 0)} price=${Number(transaction.price || 0)}`
-      )).join('; ')
-
-      return [
-        `Dashboard snapshot: assets=${this.assets.length}, marketValue=${Number(this.totalMarketValue || 0).toFixed(2)}, costBasis=${Number(this.totalCostBasis || 0).toFixed(2)}, pnl=${Number(this.totalPnL || 0).toFixed(2)}.`,
-        assetSummary ? `Top holdings: ${assetSummary}.` : 'No holdings loaded.',
-        transactionSummary ? `Recent transactions: ${transactionSummary}.` : 'No recent transactions loaded.',
-        this.quote?.symbol ? `Active quote: ${this.quote.symbol} price=${Number(this.quote.price || 0).toFixed(2)} change=${Number(this.quote.change || 0).toFixed(2)}.` : 'No active quote loaded.'
-      ].join(' ')
-    },
-    scrollAiChatToBottom() {
-      const container = this.$refs.aiChatMessages
-      if (container) {
-        container.scrollTop = container.scrollHeight
       }
     },
     async searchQuote() {
@@ -641,7 +611,7 @@ export default {
       this.lookupTransactionCurrentPrice(ticker)
     },
     async lookupTransactionCurrentPrice(ticker) {
-      const normalizedTicker = ticker?.trim()?.toUpperCase()
+      const normalizedTicker = this.normalizeHistoryTicker(ticker)
       if (!normalizedTicker) {
         return
       }
@@ -649,18 +619,55 @@ export default {
       const lookupToken = ++this.transactionLookupToken
       this.transactionQuoteLoading = true
       try {
-        const quote = await fetchQuote(normalizedTicker)
-        if (lookupToken !== this.transactionLookupToken || this.transactionForm.ticker !== normalizedTicker) {
+        let quote = null
+        try {
+          quote = await fetchQuote(normalizedTicker)
+        } catch (error) {
+          quote = null
+        }
+
+        if (
+          lookupToken !== this.transactionLookupToken ||
+          this.normalizeHistoryTicker(this.transactionForm.ticker) !== normalizedTicker
+        ) {
           return
         }
+
         if (quote?.price != null) {
           this.transactionForm.currentPrice = Number(quote.price)
+        } else {
+          const history = await fetchHistoryJson(normalizedTicker)
+          const latestClose = this.getLatestCloseFromHistory(history)
+          if (
+            lookupToken !== this.transactionLookupToken ||
+            this.normalizeHistoryTicker(this.transactionForm.ticker) !== normalizedTicker
+          ) {
+            return
+          }
+          if (latestClose != null) {
+            this.transactionForm.currentPrice = latestClose
+          }
         }
+
         if (!this.transactionForm.assetName && quote?.name) {
           this.transactionForm.assetName = quote.name
         }
       } catch (error) {
-        // Keep the form usable even if quote lookup fails.
+        try {
+          const history = await fetchHistoryJson(normalizedTicker)
+          const latestClose = this.getLatestCloseFromHistory(history)
+          if (
+            lookupToken !== this.transactionLookupToken ||
+            this.normalizeHistoryTicker(this.transactionForm.ticker) !== normalizedTicker
+          ) {
+            return
+          }
+          if (latestClose != null) {
+            this.transactionForm.currentPrice = latestClose
+          }
+        } catch (historyError) {
+          // Keep the form usable even if both quote and history lookup fail.
+        }
       } finally {
         if (lookupToken === this.transactionLookupToken) {
           this.transactionQuoteLoading = false
@@ -691,12 +698,12 @@ export default {
       if (value == null || Number.isNaN(Number(value))) {
         return '--'
       }
-      return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: 'USD',
+      const numericValue = Number(value)
+      const compactValue = new Intl.NumberFormat('en-US', {
         notation: 'compact',
         maximumFractionDigits: 1
-      }).format(Number(value))
+      }).format(numericValue)
+      return numericValue < 0 ? `-$${compactValue.slice(1)}` : `$${compactValue}`
     },
     formatNumber(value) {
       if (value == null || Number.isNaN(Number(value))) {
@@ -725,6 +732,9 @@ export default {
     },
     valueClass(value) {
       return Number(value || 0) >= 0 ? 'text-rise' : 'text-fall'
+    },
+    holdingValueClass(value) {
+      return Number(value || 0) >= 0 ? 'text-holding-rise' : 'text-holding-fall'
     },
     getChartInst(key, el) {
       if (!this.charts[key] && el) {
@@ -764,20 +774,39 @@ export default {
         return
       }
 
+      const quoteSeries = [
+        this.quote.open,
+        this.quote.previousClose,
+        this.quote.dayLow,
+        this.quote.dayHigh,
+        this.quote.price
+      ].map(value => (value == null || Number.isNaN(Number(value)) ? null : Number(value)))
+      const quoteRange = this.buildChartRange(quoteSeries)
+
       chart.setOption({
         xAxis: { data: ['Open', 'Prev Close', 'Low', 'High', 'Price'] },
-        yAxis: { type: 'value' },
+        yAxis: {
+          type: 'value',
+          min: quoteRange.min,
+          max: quoteRange.max
+        },
         series: [
           {
             type: 'line',
             smooth: true,
-            data: [
-              this.quote.open,
-              this.quote.previousClose,
-              this.quote.dayLow,
-              this.quote.dayHigh,
-              this.quote.price
-            ]
+            showSymbol: true,
+            symbolSize: 8,
+            lineStyle: {
+              width: 3,
+              color: '#db3f16'
+            },
+            itemStyle: {
+              color: '#db3f16'
+            },
+            areaStyle: {
+              color: 'rgba(219, 63, 22, 0.12)'
+            },
+            data: quoteSeries
           }
         ]
       })
@@ -788,22 +817,268 @@ export default {
         return
       }
 
+      const historyPoints = this.getSelectedHistoryPoints()
+      if (!historyPoints.length) {
+        chart.clear()
+        return
+      }
+      const closeSeries = historyPoints.map(point => point.close)
+      const historyRange = this.buildChartRange(closeSeries)
+
       chart.setOption({
-        tooltip: { trigger: 'axis' },
+        tooltip: {
+          trigger: 'axis',
+          formatter: params => {
+            const point = Array.isArray(params) ? params[0] : params
+            if (!point) {
+              return ''
+            }
+
+            const numericValue = Number(point.value || 0)
+            const valueColor = numericValue < 0 ? '#2e8b57' : '#db3f16'
+
+            return `
+              <div style="min-width: 126px;">
+                <div style="margin-bottom: 8px; color: #7c6c5d;">${point.axisValue}</div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="width: 10px; height: 10px; border-radius: 50%; background: ${point.color || valueColor}; display: inline-block;"></span>
+                  <span style="color: ${valueColor}; font-weight: 700;">${this.formatCurrency(numericValue)}</span>
+                </div>
+              </div>
+            `
+          }
+        },
+        grid: {
+          left: 56,
+          right: 24,
+          top: 24,
+          bottom: 40
+        },
         xAxis: {
           type: 'category',
-          data: this.portfolioHistory.map(point => point.timestamp)
+          boundaryGap: false,
+          data: historyPoints.map(point => point.date)
         },
-        yAxis: { type: 'value' },
+        yAxis: {
+          type: 'value',
+          min: historyRange.min,
+          max: historyRange.max,
+          axisLabel: {
+            formatter: value => this.formatCompactCurrency(value)
+          }
+        },
         series: [
           {
             type: 'line',
             smooth: true,
-            areaStyle: {},
-            data: this.portfolioHistory.map(point => Number(point.value || 0))
+            showSymbol: false,
+            lineStyle: {
+              width: 3,
+              color: '#db3f16'
+            },
+            itemStyle: {
+              color: '#db3f16'
+            },
+            areaStyle: {
+              color: 'rgba(219, 63, 22, 0.12)'
+            },
+            data: historyPoints.map(point => point.close)
           }
         ]
       })
+    },
+    async handleHistorySearch() {
+      this.historyLoading = true
+      this.historyError = ''
+
+      try {
+        const normalizedTicker = this.normalizeHistoryTicker(this.historyTickerInput)
+        const history = await fetchHistoryJson(normalizedTicker)
+
+        if (!history) {
+          throw new Error(`No history response found for ${normalizedTicker}`)
+        }
+
+        this.historyTickerInput = normalizedTicker
+        this.selectedHistory = history
+        const filteredPrices = this.getFilteredHistoryPrices(history.prices)
+
+        if (!filteredPrices.length) {
+          throw new Error(`No ${this.historyRangeLabel} data available for ${normalizedTicker}`)
+        }
+
+        const latestPoint = filteredPrices[filteredPrices.length - 1]
+        this.selectedHistoryMeta = {
+          symbol: normalizedTicker,
+          lastRefreshed: history.lastRefreshed || latestPoint.date,
+          latestClose: Number(latestPoint.close || 0)
+        }
+
+        this.$nextTick(() => this.renderPortfolioHistoryChart())
+      } catch (error) {
+        this.selectedHistory = null
+        this.selectedHistoryMeta = null
+        this.historyError = `History failed: ${error.message || 'Unknown error'}`
+        this.$nextTick(() => {
+          const chart = this.getChartInst('portfolioHistory', this.$refs.portfolioHistoryChart)
+          chart?.clear()
+        })
+      } finally {
+        this.historyLoading = false
+      }
+    },
+    async loadHoldingTrendHistories() {
+      const uniqueTickers = [...new Set(
+        this.assets
+          .map(asset => this.normalizeHistoryTicker(asset.ticker))
+          .filter(Boolean)
+      )]
+
+      if (!uniqueTickers.length) {
+        this.holdingTrendHistories = {}
+        return
+      }
+
+      const results = await Promise.allSettled(
+        uniqueTickers.map(async ticker => [ticker, await fetchHistoryJson(ticker)])
+      )
+
+      this.holdingTrendHistories = results.reduce((historyMap, result) => {
+        if (result.status === 'fulfilled') {
+          const [ticker, history] = result.value
+          historyMap[ticker] = history
+        }
+        return historyMap
+      }, {})
+    },
+    normalizeHistoryTicker(ticker) {
+      const normalizedTicker = String(ticker || '').trim().toUpperCase()
+      return HISTORY_TICKER_ALIASES[normalizedTicker] || normalizedTicker
+    },
+    getSelectedHistoryPoints() {
+      return this.getFilteredHistoryPrices(this.selectedHistory?.prices || [])
+    },
+    getFilteredHistoryPrices(prices, range = this.historyRange) {
+      if (!Array.isArray(prices) || !prices.length) {
+        return []
+      }
+
+      const sortedPrices = [...prices]
+        .filter(point => point?.date && point?.close != null)
+        .sort((first, second) => new Date(first.date) - new Date(second.date))
+
+      if (!sortedPrices.length) {
+        return []
+      }
+
+      const latestDate = new Date(sortedPrices[sortedPrices.length - 1].date)
+      const startDate = new Date(latestDate)
+      startDate.setMonth(startDate.getMonth() - (range === '6M' ? 6 : 1))
+
+      return sortedPrices.map(point => ({
+        date: point.date,
+        close: Number(point.close || 0)
+      })).filter(point => new Date(point.date) >= startDate)
+    },
+    getLatestCloseFromHistory(history) {
+      const prices = Array.isArray(history?.prices) ? history.prices : []
+      if (!prices.length) {
+        return null
+      }
+
+      const latestPoint = [...prices]
+        .filter(point => point?.date && point?.close != null)
+        .sort((first, second) => new Date(second.date) - new Date(first.date))[0]
+
+      return latestPoint ? Number(latestPoint.close || 0) : null
+    },
+    buildChartRange(values, padding = 10) {
+      const numericValues = (values || []).map(value => Number(value)).filter(value => !Number.isNaN(value))
+      if (!numericValues.length) {
+        return { min: 0, max: 100 }
+      }
+
+      const minValue = Math.min(...numericValues)
+      const maxValue = Math.max(...numericValues)
+      if (minValue === maxValue) {
+        return {
+          min: minValue - padding,
+          max: maxValue + padding
+        }
+      }
+
+      return {
+        min: minValue - padding,
+        max: maxValue + padding
+      }
+    },
+    getPortfolioPnlTrendPoints(range = '1M') {
+      const normalizedAssets = this.assets
+        .map(asset => ({
+          ticker: this.normalizeHistoryTicker(asset.ticker),
+          quantity: Number(asset.quantity || 0),
+          avgCost: Number(asset.avgCost || 0)
+        }))
+        .filter(asset => asset.ticker && asset.quantity > 0)
+
+      if (!normalizedAssets.length) {
+        return []
+      }
+
+      const dateSet = new Set()
+      const assetSeriesMap = {}
+
+      normalizedAssets.forEach(asset => {
+        const history = this.holdingTrendHistories[asset.ticker]
+        const series = this.getFilteredHistoryPrices(history?.prices || [], range)
+        if (!series.length) {
+          return
+        }
+
+        assetSeriesMap[asset.ticker] = series
+        series.forEach(point => dateSet.add(point.date))
+      })
+
+      const sortedDates = [...dateSet].sort((first, second) => new Date(first) - new Date(second))
+      if (!sortedDates.length) {
+        return []
+      }
+
+      return sortedDates.map(date => {
+        let totalPnl = 0
+
+        normalizedAssets.forEach(asset => {
+          const series = assetSeriesMap[asset.ticker] || []
+          const closingPoint = this.getLatestHistoryPointByDate(series, date)
+          if (!closingPoint) {
+            return
+          }
+
+          totalPnl += (Number(closingPoint.close || 0) - asset.avgCost) * asset.quantity
+        })
+
+        return {
+          date,
+          pnl: totalPnl
+        }
+      })
+    },
+    getLatestHistoryPointByDate(series, targetDate) {
+      if (!Array.isArray(series) || !series.length) {
+        return null
+      }
+
+      const targetTimestamp = new Date(targetDate).getTime()
+      let matchedPoint = null
+
+      series.forEach(point => {
+        const pointTimestamp = new Date(point.date).getTime()
+        if (pointTimestamp <= targetTimestamp) {
+          matchedPoint = point
+        }
+      })
+
+      return matchedPoint
     },
     renderPortfolioPnlChart() {
       const chart = this.getChartInst('portfolioPnl', this.$refs.portfolioPnlChart)
@@ -811,9 +1086,16 @@ export default {
         return
       }
 
-      const pnlSeries = this.portfolioHistory.map(point => Number(point.pnl || 0))
+      const pnlPoints = this.getPortfolioPnlTrendPoints('1M')
+      if (!pnlPoints.length) {
+        chart.clear()
+        return
+      }
+
+      const pnlSeries = pnlPoints.map(point => Number(point.pnl || 0))
+      const pnlRange = this.buildChartRange(pnlSeries)
       const latestPnl = pnlSeries.length ? pnlSeries[pnlSeries.length - 1] : 0
-      const trendColor = latestPnl >= 0 ? '#39d0a4' : '#ff7a7a'
+      const trendColor = latestPnl >= 0 ? '#db3f16' : '#8f3a2d'
 
       chart.setOption({
         tooltip: {
@@ -829,10 +1111,12 @@ export default {
         xAxis: {
           type: 'category',
           boundaryGap: false,
-          data: this.portfolioHistory.map(point => point.timestamp)
+          data: pnlPoints.map(point => point.date)
         },
         yAxis: {
           type: 'value',
+          min: pnlRange.min,
+          max: pnlRange.max,
           axisLabel: {
             formatter: value => this.formatCompactCurrency(value)
           }
@@ -845,12 +1129,12 @@ export default {
             lineStyle: { width: 3, color: trendColor },
             itemStyle: { color: trendColor },
             areaStyle: {
-              color: latestPnl >= 0 ? 'rgba(57, 208, 164, 0.12)' : 'rgba(255, 122, 122, 0.12)'
+              color: latestPnl >= 0 ? 'rgba(219, 63, 22, 0.12)' : 'rgba(143, 58, 45, 0.12)'
             },
             markLine: {
               symbol: 'none',
               lineStyle: {
-                color: 'rgba(255, 255, 255, 0.18)',
+                color: 'rgba(34, 27, 21, 0.22)',
                 type: 'dashed'
               },
               data: [{ yAxis: 0 }]
@@ -871,7 +1155,7 @@ export default {
         tooltip: { trigger: 'axis' },
         legend: {
           top: 0,
-          textStyle: { color: '#eef4ff' }
+          textStyle: { color: '#221b15' }
         },
         xAxis: {
           type: 'category',
@@ -886,13 +1170,60 @@ export default {
         }))
       })
     },
-    getHoldingTrendSeries(ticker) {
-      const history = this.holdingsHistory.find(item => item.ticker === ticker)
-      return (history?.points || []).map(point => Number(point.pnl || 0))
+    getHoldingTrendSeries(ticker, range = this.historyRange) {
+      const normalizedTicker = this.normalizeHistoryTicker(ticker)
+      const history = this.holdingTrendHistories[normalizedTicker]
+      return this.getFilteredHistoryPrices(history?.prices || [], range).map(point => Number(point.close || 0))
     },
-    getLatestHoldingPnl(ticker) {
-      const series = this.getHoldingTrendSeries(ticker)
-      return series.length ? series[series.length - 1] : 0
+    getHoldingTrendDelta(ticker, range = this.historyRange) {
+      const series = this.getHoldingTrendSeries(ticker, range)
+      if (series.length < 2) {
+        return 0
+      }
+      return series[series.length - 1] - series[0]
+    },
+    getHoldingTrendFirstClose(ticker, range = this.historyRange) {
+      const series = this.getHoldingTrendSeries(ticker, range)
+      return series.length ? series[0] : null
+    },
+    getHoldingTrendLastClose(ticker, range = this.historyRange) {
+      const series = this.getHoldingTrendSeries(ticker, range)
+      return series.length ? series[series.length - 1] : null
+    },
+    showHoldingTrendPopover(asset, event) {
+      const series = this.getHoldingTrendSeries(asset.ticker, '1M')
+      if (!series.length) {
+        this.hoveredTrend = null
+        return
+      }
+
+      const triggerRect = event.currentTarget.getBoundingClientRect()
+      const popoverWidth = 220
+      const popoverHeight = 142
+      const viewportPadding = 12
+      const centeredLeft = triggerRect.left + (triggerRect.width / 2) - (popoverWidth / 2)
+      const left = Math.min(
+        window.innerWidth - popoverWidth - viewportPadding,
+        Math.max(viewportPadding, centeredLeft)
+      )
+      const top = triggerRect.top >= popoverHeight + 16
+        ? triggerRect.top - popoverHeight - 10
+        : Math.min(window.innerHeight - popoverHeight - viewportPadding, triggerRect.bottom + 10)
+
+      this.hoveredTrend = {
+        ticker: this.normalizeHistoryTicker(asset.ticker),
+        series,
+        delta: this.getHoldingTrendDelta(asset.ticker, '1M'),
+        firstClose: this.getHoldingTrendFirstClose(asset.ticker, '1M'),
+        lastClose: this.getHoldingTrendLastClose(asset.ticker, '1M'),
+        style: {
+          left: `${left}px`,
+          top: `${top}px`
+        }
+      }
+    },
+    hideHoldingTrendPopover() {
+      this.hoveredTrend = null
     },
     sparklinePath(values, width = 120, height = 36) {
       if (!Array.isArray(values) || !values.length) {
@@ -915,6 +1246,7 @@ export default {
       }).join(' ')
     },
     handleResize() {
+      this.hideHoldingTrendPopover()
       Object.values(this.charts).forEach(chart => chart?.resize())
     }
   }
@@ -923,13 +1255,15 @@ export default {
 
 <style>
 :root {
-  --bg: #06101d;
-  --panel: rgba(10, 23, 42, 0.88);
-  --line: rgba(126, 156, 199, 0.2);
-  --text: #eef4ff;
-  --muted: #9db1d0;
-  --accent: #39d0a4;
-  --danger: #ff7a7a;
+  --bg: #f6f1ea;
+  --panel: rgba(255, 255, 255, 0.92);
+  --line: rgba(34, 27, 21, 0.1);
+  --text: #221b15;
+  --muted: #7c6c5d;
+  --accent: #db3f16;
+  --danger: #8f3a2d;
+  --surface: #fffdf9;
+  --surface-strong: #fffaf4;
 }
 
 * {
@@ -938,9 +1272,11 @@ export default {
 
 body {
   margin: 0;
-  background: #07111f;
+  background:
+    radial-gradient(circle at top right, rgba(219, 63, 22, 0.12), transparent 28%),
+    linear-gradient(180deg, #faf6f0 0%, #f4efe8 100%);
   color: var(--text);
-  font-family: sans-serif;
+  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
 button,
@@ -952,17 +1288,43 @@ textarea {
 
 .app-shell {
   min-height: 100vh;
-  padding: 32px;
+  max-width: 1480px;
+  margin: 0 auto;
+  padding: 28px 32px 40px;
 }
 
 .hero {
   display: flex;
   justify-content: space-between;
   gap: 24px;
-  align-items: flex-start;
-  padding: 28px;
-  border-radius: 28px;
-  background: rgba(12, 31, 57, 0.95);
+  align-items: center;
+  padding: 30px 32px;
+  border-radius: 30px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(255, 246, 240, 0.96));
+  border: 1px solid rgba(219, 63, 22, 0.12);
+  box-shadow: 0 22px 50px rgba(55, 37, 23, 0.08);
+}
+
+.hero-brand {
+  flex: 1;
+}
+
+.brand-badge {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 10px;
+}
+
+.brand-logo {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  border-radius: 20px;
+  background: #ffffff;
+  padding: 10px;
+  box-shadow: 0 12px 28px rgba(34, 27, 21, 0.12);
 }
 
 .hero-actions {
@@ -970,6 +1332,7 @@ textarea {
   gap: 12px;
   flex-wrap: wrap;
   justify-content: flex-end;
+  align-self: center;
 }
 
 .hero-button {
@@ -998,28 +1361,32 @@ textarea {
 
 .refresh-button,
 .quote-form button,
+.history-form button,
 .transaction-form button {
   padding: 14px 22px;
   border-radius: 999px;
-  background: linear-gradient(90deg, #39d0a4, #2b7fff);
+  background: linear-gradient(90deg, #db3f16, #f05a28);
   border: none;
-  font-weight: bold;
+  color: #fffaf5;
+  font-weight: 700;
   cursor: pointer;
+  box-shadow: 0 14px 24px rgba(219, 63, 22, 0.18);
 }
 
 .ghost-button {
-  background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.68);
+  border: 1px solid rgba(34, 27, 21, 0.12);
   color: var(--text);
 }
 
 .error-banner,
 .inline-error {
-  background: rgba(255, 122, 122, 0.2);
+  background: rgba(219, 63, 22, 0.08);
   padding: 14px;
   border-radius: 18px;
   margin: 20px 0;
-  color: #ffd4d4;
+  color: #9d341d;
+  border: 1px solid rgba(219, 63, 22, 0.12);
 }
 
 .summary-grid,
@@ -1029,7 +1396,7 @@ textarea {
 .tables-grid {
   display: grid;
   gap: 20px;
-  margin: 20px 0;
+  margin: 24px 0;
 }
 
 .summary-grid {
@@ -1041,11 +1408,11 @@ textarea {
 }
 
 .content-grid {
-  grid-template-columns: 1.2fr 1fr;
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.95fr);
 }
 
 .analytics-grid {
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1.4fr) minmax(320px, 1fr);
 }
 
 .tables-grid {
@@ -1054,18 +1421,20 @@ textarea {
 
 .summary-card,
 .panel {
-  padding: 22px;
+  padding: 24px;
   background: var(--panel);
   border-radius: 24px;
   border: 1px solid var(--line);
+  box-shadow: 0 14px 34px rgba(55, 37, 23, 0.05);
 }
 
 .full-width-panel {
-  margin: 20px 0;
+  margin: 24px 0;
 }
 
 .accent-card {
-  background: rgba(57, 208, 164, 0.1);
+  background: linear-gradient(135deg, rgba(219, 63, 22, 0.14), rgba(255, 248, 241, 0.96));
+  border-color: rgba(219, 63, 22, 0.16);
 }
 
 .summary-card strong {
@@ -1074,11 +1443,15 @@ textarea {
   margin: 8px 0;
 }
 
+.summary-card small {
+  line-height: 1.6;
+}
+
 .panel-heading {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: 18px;
 }
 
 .chart {
@@ -1096,8 +1469,19 @@ textarea {
   margin-bottom: 18px;
 }
 
+.history-form {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 18px;
+  align-items: end;
+}
+
 .quote-form label {
   width: 100%;
+}
+
+.history-form label {
+  flex: 1;
 }
 
 .quote-form span,
@@ -1107,16 +1491,24 @@ textarea {
   color: var(--muted);
 }
 
+.history-form span {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--muted);
+}
+
 .quote-form input,
+.history-form input,
+.history-form select,
 .transaction-form input,
 .transaction-form select,
 .transaction-form textarea {
   width: 100%;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--surface);
+  border: 1px solid rgba(34, 27, 21, 0.12);
   padding: 14px;
   border-radius: 14px;
-  color: #fff;
+  color: var(--text);
 }
 
 .picker-row {
@@ -1128,8 +1520,8 @@ textarea {
   flex: 0 0 auto;
   padding: 12px 16px;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(34, 27, 21, 0.12);
+  background: var(--surface);
   color: var(--text);
   cursor: pointer;
 }
@@ -1140,10 +1532,18 @@ textarea {
   gap: 12px;
 }
 
+.history-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
 .metric-box {
   padding: 14px;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--surface-strong);
   border-radius: 18px;
+  border: 1px solid rgba(34, 27, 21, 0.06);
 }
 
 .transaction-form {
@@ -1169,24 +1569,25 @@ textarea {
 table {
   width: 100%;
   border-collapse: collapse;
+  min-width: 1120px;
 }
 
 th,
 td {
   padding: 14px;
   text-align: left;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  border-bottom: 1px solid rgba(34, 27, 21, 0.08);
   vertical-align: top;
 }
 
 .trend-cell {
-  min-width: 132px;
+  min-width: 108px;
 }
 
 .sparkline {
   display: block;
-  width: 120px;
-  height: 36px;
+  width: 96px;
+  height: 28px;
 }
 
 .sparkline-path {
@@ -1204,8 +1605,76 @@ td {
   stroke: var(--danger);
 }
 
+.sparkline-path.text-holding-rise {
+  stroke: #db3f16;
+}
+
+.sparkline-path.text-holding-fall {
+  stroke: #2e8b57;
+}
+
 .trend-empty {
   color: var(--muted);
+}
+
+.trend-hover-card {
+  display: inline-flex;
+  align-items: center;
+}
+
+.trend-hover-card .sparkline {
+  transition: transform 0.18s ease, filter 0.18s ease;
+}
+
+.trend-hover-card:hover .sparkline {
+  transform: scale(1.08);
+  filter: drop-shadow(0 8px 18px rgba(219, 63, 22, 0.18));
+}
+
+.trend-floating-popover {
+  position: fixed;
+  width: 220px;
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(255, 252, 247, 0.98);
+  border: 1px solid rgba(219, 63, 22, 0.14);
+  box-shadow: 0 18px 42px rgba(34, 27, 21, 0.14);
+  pointer-events: none;
+  z-index: 9999;
+}
+
+.transaction-form {
+  align-items: start;
+}
+
+.trend-popover-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  gap: 8px;
+}
+
+.trend-popover-header strong {
+  font-size: 14px;
+}
+
+.trend-popover-header span,
+.trend-popover-meta span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.sparkline-large {
+  width: 100%;
+  height: 72px;
+}
+
+.trend-popover-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 12px;
 }
 
 .rate-copy {
@@ -1215,170 +1684,19 @@ td {
 }
 
 .text-rise {
-  color: #39d0a4;
+  color: var(--accent);
 }
 
 .text-fall {
-  color: #ff7a7a;
+  color: var(--danger);
 }
 
-.ai-fab {
-  position: fixed;
-  right: 28px;
-  bottom: 28px;
-  width: 74px;
-  height: 74px;
-  border: none;
-  border-radius: 24px;
-  background: linear-gradient(145deg, rgba(57, 208, 164, 0.24), rgba(43, 127, 255, 0.3));
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-  z-index: 20;
+.text-holding-rise {
+  color: #db3f16;
 }
 
-.ai-fab img {
-  width: 42px;
-  height: 42px;
-  object-fit: contain;
-}
-
-.ai-chat-panel {
-  position: fixed;
-  right: 28px;
-  bottom: 118px;
-  width: min(420px, calc(100vw - 32px));
-  max-height: min(72vh, 760px);
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding: 18px;
-  border-radius: 28px;
-  border: 1px solid rgba(126, 156, 199, 0.26);
-  background:
-    radial-gradient(circle at top left, rgba(57, 208, 164, 0.14), transparent 40%),
-    rgba(5, 16, 31, 0.96);
-  backdrop-filter: blur(10px);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
-  z-index: 21;
-}
-
-.ai-chat-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: flex-start;
-}
-
-.ai-chat-title {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-
-.ai-chat-title img {
-  width: 42px;
-  height: 42px;
-  border-radius: 14px;
-  object-fit: contain;
-  background: rgba(255, 255, 255, 0.08);
-  padding: 6px;
-}
-
-.ai-chat-title p {
-  margin: 4px 0 0;
-  color: var(--muted);
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-.ai-close {
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: transparent;
-  color: var(--text);
-  border-radius: 999px;
-  padding: 10px 14px;
-  cursor: pointer;
-}
-
-.ai-chat-messages {
-  min-height: 220px;
-  max-height: 380px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding-right: 4px;
-}
-
-.ai-message {
-  max-width: 88%;
-  padding: 14px 16px;
-  border-radius: 20px;
-  line-height: 1.6;
-  white-space: pre-wrap;
-}
-
-.ai-message p {
-  margin: 6px 0 0;
-}
-
-.ai-message-role {
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: rgba(238, 244, 255, 0.64);
-}
-
-.ai-message-assistant {
-  align-self: flex-start;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.ai-message-user {
-  align-self: flex-end;
-  background: rgba(43, 127, 255, 0.18);
-  border: 1px solid rgba(43, 127, 255, 0.25);
-}
-
-.ai-chat-form {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.ai-chat-form textarea {
-  width: 100%;
-  resize: vertical;
-  min-height: 108px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 14px;
-  border-radius: 18px;
-  color: #fff;
-}
-
-.ai-chat-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-}
-
-.ai-error {
-  margin: 0;
-}
-
-.chat-pop-enter-active,
-.chat-pop-leave-active {
-  transition: opacity 0.2s ease, transform 0.2s ease;
-}
-
-.chat-pop-enter,
-.chat-pop-leave-to {
-  opacity: 0;
-  transform: translateY(12px) scale(0.98);
+.text-holding-fall {
+  color: #2e8b57;
 }
 
 @media (max-width: 1200px) {
@@ -1388,8 +1706,13 @@ td {
   .analytics-grid,
   .tables-grid,
   .quote-metrics,
+  .history-summary,
   .transaction-form {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  table {
+    min-width: 980px;
   }
 }
 
@@ -1405,6 +1728,7 @@ td {
   .analytics-grid,
   .tables-grid,
   .quote-metrics,
+  .history-summary,
   .transaction-form {
     grid-template-columns: 1fr;
   }
@@ -1413,30 +1737,19 @@ td {
     display: block;
   }
 
+  .brand-badge {
+    align-items: flex-start;
+  }
+
   .quote-form,
+  .history-form,
   .form-actions,
-  .hero-actions,
-  .ai-chat-actions {
+  .hero-actions {
     flex-direction: column;
   }
 
   .form-span-2 {
     grid-column: span 1;
-  }
-
-  .ai-fab {
-    right: 16px;
-    bottom: 16px;
-    width: 64px;
-    height: 64px;
-    border-radius: 20px;
-  }
-
-  .ai-chat-panel {
-    right: 16px;
-    bottom: 92px;
-    width: calc(100vw - 32px);
-    max-height: 76vh;
   }
 }
 </style>
