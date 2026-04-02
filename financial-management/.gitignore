@@ -31,3 +31,5 @@ build/
 
 ### VS Code ###
 .vscode/
+/front/formal/dist/favicon.ico
+/front/formal/dist/huifeng.png

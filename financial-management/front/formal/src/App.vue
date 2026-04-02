@@ -103,16 +103,16 @@
               </div>
               <div class="range-toggle">
                 <button
-                  type="button"
-                  :class="['range-toggle-button', { 'is-active': portfolioTrendRange === '1M' }]"
-                  @click="setPortfolioTrendRange('1M')"
+                    type="button"
+                    :class="['range-toggle-button', { 'is-active': portfolioTrendRange === '1M' }]"
+                    @click="setPortfolioTrendRange('1M')"
                 >
                   1M
                 </button>
                 <button
-                  type="button"
-                  :class="['range-toggle-button', { 'is-active': portfolioTrendRange === '6M' }]"
-                  @click="setPortfolioTrendRange('6M')"
+                    type="button"
+                    :class="['range-toggle-button', { 'is-active': portfolioTrendRange === '6M' }]"
+                    @click="setPortfolioTrendRange('6M')"
                 >
                   6M
                 </button>
@@ -153,9 +153,9 @@
                   <span>Filter</span>
                   <select v-model="holdingsFilter">
                     <option
-                      v-for="option in holdingsFilterOptions"
-                      :key="option.value"
-                      :value="option.value"
+                        v-for="option in holdingsFilterOptions"
+                        :key="option.value"
+                        :value="option.value"
                     >
                       {{ option.label }}
                     </option>
@@ -171,64 +171,64 @@
             <div class="ledger-table-wrap">
               <table class="ledger-table">
                 <thead>
-                  <tr>
-                    <th>Asset Name</th>
-                    <th>Ticker</th>
-                    <th>Type</th>
-                    <th>Quantity</th>
-                    <th>Avg Cost</th>
-                    <th>Current Price</th>
-                    <th>Market Value</th>
-                    <th>P/L</th>
-                    <th>Trend</th>
-                  </tr>
+                <tr>
+                  <th>Asset Name</th>
+                  <th>Ticker</th>
+                  <th>Type</th>
+                  <th>Quantity</th>
+                  <th>Avg Cost</th>
+                  <th>Current Price</th>
+                  <th>Market Value</th>
+                  <th>P/L</th>
+                  <th>Trend</th>
+                </tr>
                 </thead>
                 <tbody>
-                  <tr
+                <tr
                     v-for="asset in filteredAssets"
                     :key="asset.id"
                     class="holding-row"
                     @click="openAssetDetails(asset)"
-                  >
-                    <td class="asset-cell">
-                      <div class="asset-row-meta">
-                        <div class="asset-symbol">{{ asset.ticker.slice(0, 1) }}</div>
-                        <div>
-                          <strong>{{ asset.name }}</strong>
-                        </div>
+                >
+                  <td class="asset-cell">
+                    <div class="asset-row-meta">
+                      <div class="asset-symbol">{{ asset.ticker.slice(0, 1) }}</div>
+                      <div>
+                        <strong>{{ asset.name }}</strong>
                       </div>
-                    </td>
-                    <td class="ticker-cell">{{ asset.ticker }}</td>
-                    <td>
-                      <span class="type-pill" :style="getTypeBadgeStyle(asset.type)">{{ formatAssetTypeLabel(asset.type) }}</span>
-                    </td>
-                    <td>{{ formatNumber(asset.quantity) }}</td>
-                    <td>{{ formatCurrency(asset.avgCost) }}</td>
-                    <td>{{ formatCurrency(asset.currentPrice) }}</td>
-                    <td>{{ formatCurrency(asset.currentValue) }}</td>
-                    <td :class="holdingValueClass(asset.unrealizedPnL)">
-                      {{ formatCurrency(asset.unrealizedPnL) }}
-                    </td>
-                    <td class="trend-cell">
-                      <div
+                    </div>
+                  </td>
+                  <td class="ticker-cell">{{ asset.ticker }}</td>
+                  <td>
+                    <span class="type-pill" :style="getTypeBadgeStyle(asset.type)">{{ formatAssetTypeLabel(asset.type) }}</span>
+                  </td>
+                  <td>{{ formatNumber(asset.quantity) }}</td>
+                  <td>{{ formatCurrency(asset.avgCost) }}</td>
+                  <td>{{ formatCurrency(asset.currentPrice) }}</td>
+                  <td>{{ formatCurrency(asset.currentValue) }}</td>
+                  <td :class="holdingValueClass(asset.unrealizedPnL)">
+                    {{ formatCurrency(asset.unrealizedPnL) }}
+                  </td>
+                  <td class="trend-cell">
+                    <div
                         v-if="getHoldingTrendSeries(asset.ticker, '1M').length"
                         class="trend-hover-card"
                         @mouseenter="showHoldingTrendPopover(asset, $event)"
                         @mouseleave="hideHoldingTrendPopover"
-                      >
-                        <svg class="sparkline" viewBox="0 0 96 28" preserveAspectRatio="none">
-                          <path
+                    >
+                      <svg class="sparkline" viewBox="0 0 96 28" preserveAspectRatio="none">
+                        <path
                             :d="sparklinePath(getHoldingTrendSeries(asset.ticker, '1M'), 96, 28)"
                             :class="['sparkline-path', getTrendClass(getHoldingTrendSeries(asset.ticker, '1M'))]"
-                          />
-                        </svg>
-                      </div>
-                      <span v-else class="trend-empty">--</span>
-                    </td>
-                  </tr>
-                  <tr v-if="!filteredAssets.length">
-                    <td colspan="9" class="holdings-empty-state">No holdings in this category.</td>
-                  </tr>
+                        />
+                      </svg>
+                    </div>
+                    <span v-else class="trend-empty">--</span>
+                  </td>
+                </tr>
+                <tr v-if="!filteredAssets.length">
+                  <td colspan="9" class="holdings-empty-state">No holdings in this category.</td>
+                </tr>
                 </tbody>
               </table>
             </div>
@@ -257,10 +257,10 @@
                     </div>
                     <div class="holding-summary-pill" :class="holdingValueClass(getAssetPerformanceRate(largestPosition))">
                       <svg
-                        class="holding-summary-pill-icon"
-                        :class="{ 'is-down': getAssetPerformanceRate(largestPosition) < 0 }"
-                        viewBox="0 0 24 24"
-                        aria-hidden="true"
+                          class="holding-summary-pill-icon"
+                          :class="{ 'is-down': getAssetPerformanceRate(largestPosition) < 0 }"
+                          viewBox="0 0 24 24"
+                          aria-hidden="true"
                       >
                         <path d="M4 16 L10 10 L14 14 L20 8" />
                         <path d="M15.5 8 H20 V12.5" />
@@ -292,10 +292,10 @@
                     </div>
                     <div class="holding-summary-pill" :class="holdingValueClass(getAssetPerformanceRate(topPerformer))">
                       <svg
-                        class="holding-summary-pill-icon"
-                        :class="{ 'is-down': getAssetPerformanceRate(topPerformer) < 0 }"
-                        viewBox="0 0 24 24"
-                        aria-hidden="true"
+                          class="holding-summary-pill-icon"
+                          :class="{ 'is-down': getAssetPerformanceRate(topPerformer) < 0 }"
+                          viewBox="0 0 24 24"
+                          aria-hidden="true"
                       >
                         <path d="M4 16 L10 10 L14 14 L20 8" />
                         <path d="M15.5 8 H20 V12.5" />
@@ -368,10 +368,10 @@
               <div class="research-controls">
                 <form class="card-search" @submit.prevent="handleHistorySearch">
                   <input
-                    v-model.trim="historyTickerInput"
-                    type="text"
-                    list="available-asset-options"
-                    placeholder="Search ticker..."
+                      v-model.trim="historyTickerInput"
+                      type="text"
+                      list="available-asset-options"
+                      placeholder="Search ticker..."
                   >
                   <button type="submit" :disabled="historyLoading">
                     {{ historyLoading ? '...' : 'Search' }}
@@ -475,9 +475,9 @@
       </section>
 
       <div
-        v-if="hoveredTrend"
-        class="trend-floating-popover"
-        :style="hoveredTrend.style"
+          v-if="hoveredTrend"
+          class="trend-floating-popover"
+          :style="hoveredTrend.style"
       >
         <div class="trend-popover-header">
           <strong>{{ hoveredTrend.ticker }}</strong>
@@ -485,8 +485,8 @@
         </div>
         <svg class="sparkline sparkline-large" viewBox="0 0 180 72" preserveAspectRatio="none">
           <path
-            :d="sparklinePath(hoveredTrend.series, 180, 72)"
-            :class="['sparkline-path', getTrendClass(hoveredTrend.series)]"
+              :d="sparklinePath(hoveredTrend.series, 180, 72)"
+              :class="['sparkline-path', getTrendClass(hoveredTrend.series)]"
           />
         </svg>
         <div class="trend-popover-meta">
@@ -496,6 +496,58 @@
         </div>
       </div>
     </main>
+
+    <button class="ai-fab" type="button" @click="toggleAiChat" :aria-expanded="aiChatOpen">
+      <img :src="aiIcon" alt="AI assistant">
+    </button>
+
+    <transition name="chat-pop">
+      <section v-if="aiChatOpen" class="ai-chat-panel">
+        <header class="ai-chat-header">
+          <div class="ai-chat-title">
+            <img :src="aiIcon" alt="AI icon">
+            <div>
+              <strong>Mind Vest</strong>
+              <p>Ask about your holdings, quotes, and recent portfolio activity.</p>
+            </div>
+          </div>
+          <button class="ai-close" type="button" @click="aiChatOpen = false">Close</button>
+        </header>
+
+        <div ref="aiChatMessages" class="ai-chat-messages">
+          <article
+              v-for="message in aiMessages"
+              :key="message.id"
+              :class="['ai-message', `ai-message-${message.role}`]"
+          >
+            <span class="ai-message-role">{{ message.role === 'user' ? 'You' : 'AI' }}</span>
+            <template v-if="message.role === 'assistant'">
+              <div class="ai-message-rich" v-html="formatAiMessage(message.content)"></div>
+            </template>
+            <template v-else>
+              <p>{{ message.content }}</p>
+            </template>
+          </article>
+        </div>
+
+        <div v-if="aiError" class="inline-error ai-error">{{ aiError }}</div>
+
+        <form class="ai-chat-form" @submit.prevent="submitAiPrompt">
+          <textarea
+              v-model.trim="aiPrompt"
+              rows="4"
+              placeholder="Ask the assistant to explain your portfolio, market quotes, or transaction ideas..."
+              :disabled="aiSubmitting"
+          ></textarea>
+          <div class="ai-chat-actions">
+            <button type="button" class="sidebar-secondary" @click="clearAiChat" :disabled="aiSubmitting">Clear</button>
+            <button type="submit" class="sidebar-primary" :disabled="aiSubmitting || !aiPrompt">
+              {{ aiSubmitting ? 'Thinking...' : 'Send' }}
+            </button>
+          </div>
+        </form>
+      </section>
+    </transition>
 
     <div v-if="isTransactionModalOpen" class="transaction-modal-backdrop" @click.self="closeTransactionModal">
       <section class="transaction-modal">
@@ -534,12 +586,12 @@
               <label class="form-span-2">
                 <span>Ticker / Asset Name</span>
                 <input
-                  v-model.trim="transactionForm.ticker"
-                  type="text"
-                  list="available-asset-options"
-                  required
-                  placeholder="AAPL"
-                  @input="applyTickerDefaults"
+                    v-model.trim="transactionForm.ticker"
+                    type="text"
+                    list="available-asset-options"
+                    required
+                    placeholder="AAPL"
+                    @input="applyTickerDefaults"
                 >
               </label>
               <label class="form-span-2">
@@ -570,12 +622,12 @@
               <label>
                 <span>Date</span>
                 <input
-                  ref="transactionDateInput"
-                  v-model="transactionForm.transactionDate"
-                  type="datetime-local"
-                  step="60"
-                  @focus="openDatePicker"
-                  @click="openDatePicker"
+                    ref="transactionDateInput"
+                    v-model="transactionForm.transactionDate"
+                    type="datetime-local"
+                    step="60"
+                    @focus="openDatePicker"
+                    @click="openDatePicker"
                 >
               </label>
               <label class="form-span-2">
@@ -660,9 +712,9 @@
               </div>
               <div v-if="selectedAssetTransactions.length" class="detail-transaction-list">
                 <div
-                  v-for="transaction in selectedAssetTransactions"
-                  :key="transaction.id"
-                  class="detail-transaction-row"
+                    v-for="transaction in selectedAssetTransactions"
+                    :key="transaction.id"
+                    class="detail-transaction-row"
                 >
                   <div>
                     <strong>{{ transaction.transactionType }}</strong>
@@ -751,9 +803,9 @@
 
     <datalist id="available-asset-options">
       <option
-        v-for="option in availableAssetOptions"
-        :key="option.ticker"
-        :value="option.ticker"
+          v-for="option in availableAssetOptions"
+          :key="option.ticker"
+          :value="option.ticker"
       >
         {{ option.label }}
       </option>
@@ -764,6 +816,7 @@
 <script>
 import * as echarts from 'echarts'
 import {
+  chatWithAi,
   createTransaction,
   fetchAssets,
   fetchHistoryJson,
@@ -773,6 +826,8 @@ import {
   fetchTransactions,
   resetSampleData
 } from './services/api'
+
+const AI_ICON = require('../../../src/main/resources/icon.png')
 
 const createEmptyTransactionForm = () => ({
   transactionType: 'BUY',
@@ -824,10 +879,22 @@ const TYPE_COLOR_MAP = {
   UNKNOWN: '#7d8590'
 }
 
+const createAiGreeting = () => ({
+  id: 'ai-greeting',
+  role: 'assistant',
+  content: 'Hello, I can help explain your portfolio, quote moves, and recent transaction impact.'
+})
+
 export default {
   name: 'App',
   data() {
     return {
+      aiIcon: AI_ICON,
+      aiChatOpen: false,
+      aiPrompt: '',
+      aiSubmitting: false,
+      aiError: '',
+      aiMessages: [createAiGreeting()],
       assets: [],
       transactions: [],
       holdingsHistory: [],
@@ -895,13 +962,13 @@ export default {
       }, {})
 
       return Object.entries(grouped)
-        .sort((first, second) => second[1] - first[1])
-        .map(([name, value], index) => ({
-          name,
-          value,
-          color: TYPE_COLOR_MAP[name] || ALLOCATION_COLORS[index % ALLOCATION_COLORS.length],
-          percentLabel: totalValue > 0 ? `${((value / totalValue) * 100).toFixed(1)}%` : '0.0%'
-        }))
+          .sort((first, second) => second[1] - first[1])
+          .map(([name, value], index) => ({
+            name,
+            value,
+            color: TYPE_COLOR_MAP[name] || ALLOCATION_COLORS[index % ALLOCATION_COLORS.length],
+            percentLabel: totalValue > 0 ? `${((value / totalValue) * 100).toFixed(1)}%` : '0.0%'
+          }))
     },
     holdingsFilterOptions() {
       return [
@@ -932,18 +999,18 @@ export default {
         return null
       }
       return this.filteredAssets
-        .slice()
-        .sort((first, second) => this.getAssetPerformanceRate(second) - this.getAssetPerformanceRate(first))[0]
+          .slice()
+          .sort((first, second) => this.getAssetPerformanceRate(second) - this.getAssetPerformanceRate(first))[0]
     },
     availableAssetOptions() {
       return Object.entries(TICKER_PRESETS)
-        .sort((first, second) => first[0].localeCompare(second[0]))
-        .map(([ticker, preset]) => ({
-          ticker,
-          label: `${ticker} — ${preset.assetName}`,
-          assetName: preset.assetName,
-          assetType: preset.assetType
-        }))
+          .sort((first, second) => first[0].localeCompare(second[0]))
+          .map(([ticker, preset]) => ({
+            ticker,
+            label: `${ticker} — ${preset.assetName}`,
+            assetName: preset.assetName,
+            assetType: preset.assetType
+          }))
     },
     selectedHistoryMetricLabel() {
       return {
@@ -966,8 +1033,8 @@ export default {
         return []
       }
       return this.transactions
-        .filter(transaction => this.normalizeHistoryTicker(transaction.ticker) === this.normalizeHistoryTicker(this.selectedAsset.ticker))
-        .sort((first, second) => new Date(second.transactionDate) - new Date(first.transactionDate))
+          .filter(transaction => this.normalizeHistoryTicker(transaction.ticker) === this.normalizeHistoryTicker(this.selectedAsset.ticker))
+          .sort((first, second) => new Date(second.transactionDate) - new Date(first.transactionDate))
     },
     selectedAssetTrendPoints() {
       if (!this.selectedAsset?.ticker) {
@@ -1026,6 +1093,135 @@ export default {
     Object.values(this.charts).forEach(chart => chart?.dispose())
   },
   methods: {
+    toggleAiChat() {
+      this.aiChatOpen = !this.aiChatOpen
+      if (this.aiChatOpen) {
+        this.$nextTick(() => this.scrollAiChatToBottom())
+      }
+    },
+    clearAiChat() {
+      this.aiPrompt = ''
+      this.aiError = ''
+      this.aiMessages = [createAiGreeting()]
+      this.$nextTick(() => this.scrollAiChatToBottom())
+    },
+    async submitAiPrompt() {
+      if (!this.aiPrompt || this.aiSubmitting) {
+        return
+      }
+
+      const prompt = this.aiPrompt
+      this.aiPrompt = ''
+      this.aiError = ''
+      this.aiMessages.push({
+        id: `user-${Date.now()}`,
+        role: 'user',
+        content: prompt
+      })
+      this.$nextTick(() => this.scrollAiChatToBottom())
+
+      this.aiSubmitting = true
+      try {
+        const result = await chatWithAi({
+          message: `${this.buildAiContextSummary()}\n\nUser question:\n${prompt}`,
+          systemPrompt: 'You are a financial dashboard assistant. Answer in concise, friendly Chinese unless the user clearly uses another language. When discussing investments, avoid promising returns and clearly describe uncertainty.'
+        })
+
+        this.aiMessages.push({
+          id: result.id || `assistant-${Date.now()}`,
+          role: 'assistant',
+          content: result.reply || 'No response returned.'
+        })
+      } catch (error) {
+        this.aiError = `AI request failed: ${error.message || 'Unknown error'}`
+      } finally {
+        this.aiSubmitting = false
+        this.$nextTick(() => this.scrollAiChatToBottom())
+      }
+    },
+    buildAiContextSummary() {
+      const assetSummary = this.assets.slice(0, 8).map(asset => (
+          `${asset.ticker || 'UNKNOWN'}: qty=${Number(asset.quantity || 0)}, value=${Number(asset.currentValue || 0).toFixed(2)}, pnl=${Number(asset.unrealizedPnL || 0).toFixed(2)}`
+      )).join('; ')
+
+      const transactionSummary = this.transactions.slice(0, 5).map(transaction => (
+          `${transaction.transactionType} ${transaction.ticker} qty=${Number(transaction.quantity || 0)} price=${Number(transaction.price || 0)}`
+      )).join('; ')
+
+      return [
+        `Dashboard snapshot: assets=${this.assets.length}, marketValue=${Number(this.totalMarketValue || 0).toFixed(2)}, costBasis=${Number(this.totalCostBasis || 0).toFixed(2)}, pnl=${Number(this.totalPnL || 0).toFixed(2)}.`,
+        assetSummary ? `Top holdings: ${assetSummary}.` : 'No holdings loaded.',
+        transactionSummary ? `Recent transactions: ${transactionSummary}.` : 'No recent transactions loaded.',
+        this.quote?.symbol ? `Active quote: ${this.quote.symbol} price=${Number(this.quote.price || 0).toFixed(2)} change=${Number(this.quote.change || 0).toFixed(2)}.` : 'No active quote loaded.'
+      ].join(' ')
+    },
+    scrollAiChatToBottom() {
+      const container = this.$refs.aiChatMessages
+      if (container) {
+        container.scrollTop = container.scrollHeight
+      }
+    },
+    formatAiMessage(content) {
+      const escaped = this.escapeHtml(content || '')
+      const lines = escaped.split(/\r?\n/).map(line => line.trim()).filter(Boolean)
+      if (!lines.length) {
+        return '<p>No content</p>'
+      }
+
+      const htmlParts = []
+      let listItems = []
+
+      const flushList = () => {
+        if (!listItems.length) {
+          return
+        }
+        htmlParts.push(`<ul>${listItems.join('')}</ul>`)
+        listItems = []
+      }
+
+      lines.forEach((line, index) => {
+        if (/^(#{1,6}\s*)/.test(line)) {
+          flushList()
+          htmlParts.push(`<h4>${line.replace(/^(#{1,6}\s*)/, '')}</h4>`)
+          return
+        }
+
+        if (/^(\d+\.\s+|[一二三四五六七八九十]+、)/.test(line)) {
+          flushList()
+          htmlParts.push(`<h4>${line}</h4>`)
+          return
+        }
+
+        if (/^[-*•]\s+/.test(line)) {
+          listItems.push(`<li>${line.replace(/^[-*•]\s+/, '')}</li>`)
+          return
+        }
+
+        if (line.includes('：') && line.length <= 24) {
+          flushList()
+          htmlParts.push(`<h5>${line}</h5>`)
+          return
+        }
+
+        flushList()
+        if (index === 0 && lines.length > 1 && line.length <= 28) {
+          htmlParts.push(`<h4>${line}</h4>`)
+        } else {
+          htmlParts.push(`<p>${line}</p>`)
+        }
+      })
+
+      flushList()
+      return htmlParts.join('')
+    },
+    escapeHtml(content) {
+      return String(content || '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;')
+    },
     async loadDashboard() {
       this.loading = true
       this.error = ''
@@ -1047,11 +1243,11 @@ export default {
         this.assets = Array.isArray(assetsResult.value) ? assetsResult.value : []
         this.transactions = Array.isArray(transactionsResult.value) ? transactionsResult.value : []
         this.holdingsHistory = holdingsHistoryResult.status === 'fulfilled' && Array.isArray(holdingsHistoryResult.value)
-          ? holdingsHistoryResult.value
-          : []
+            ? holdingsHistoryResult.value
+            : []
         this.portfolioHistory = portfolioHistoryResult.status === 'fulfilled' && Array.isArray(portfolioHistoryResult.value)
-          ? portfolioHistoryResult.value
-          : []
+            ? portfolioHistoryResult.value
+            : []
 
         if (holdingsHistoryResult.status === 'rejected' || portfolioHistoryResult.status === 'rejected') {
           this.error = 'Historical charts are temporarily unavailable, but holdings and transactions loaded successfully.'
@@ -1094,8 +1290,8 @@ export default {
           assetName: this.transactionForm.assetName?.trim() || null,
           assetType: this.transactionForm.assetType?.trim() || null,
           transactionDate: this.transactionForm.transactionDate
-            ? new Date(this.transactionForm.transactionDate).toISOString()
-            : null,
+              ? new Date(this.transactionForm.transactionDate).toISOString()
+              : null,
           notes: this.transactionForm.notes?.trim() || null
         }
         await createTransaction(payload)
@@ -1229,8 +1425,8 @@ export default {
         }
 
         if (
-          lookupToken !== this.transactionLookupToken ||
-          this.normalizeHistoryTicker(this.transactionForm.ticker) !== normalizedTicker
+            lookupToken !== this.transactionLookupToken ||
+            this.normalizeHistoryTicker(this.transactionForm.ticker) !== normalizedTicker
         ) {
           return
         }
@@ -1241,8 +1437,8 @@ export default {
           const history = await fetchHistoryJson(normalizedTicker)
           const latestClose = this.getLatestCloseFromHistory(history)
           if (
-            lookupToken !== this.transactionLookupToken ||
-            this.normalizeHistoryTicker(this.transactionForm.ticker) !== normalizedTicker
+              lookupToken !== this.transactionLookupToken ||
+              this.normalizeHistoryTicker(this.transactionForm.ticker) !== normalizedTicker
           ) {
             return
           }
@@ -1259,8 +1455,8 @@ export default {
           const history = await fetchHistoryJson(normalizedTicker)
           const latestClose = this.getLatestCloseFromHistory(history)
           if (
-            lookupToken !== this.transactionLookupToken ||
-            this.normalizeHistoryTicker(this.transactionForm.ticker) !== normalizedTicker
+              lookupToken !== this.transactionLookupToken ||
+              this.normalizeHistoryTicker(this.transactionForm.ticker) !== normalizedTicker
           ) {
             return
           }
@@ -1295,8 +1491,8 @@ export default {
         currency: 'USD',
         maximumFractionDigits: 2
       }).format(Number(value))
-        .replace(/^US\$/, '$')
-        .replace(/^-US\$/, '-$')
+          .replace(/^US\$/, '$')
+          .replace(/^-US\$/, '-$')
     },
     formatCurrencyParts(value) {
       const formatted = this.formatCurrency(value)
@@ -1372,8 +1568,8 @@ export default {
     },
     getSeriesTrendDelta(series) {
       const numericSeries = (series || [])
-        .map(value => Number(value))
-        .filter(value => !Number.isNaN(value))
+          .map(value => Number(value))
+          .filter(value => !Number.isNaN(value))
 
       if (numericSeries.length < 2) {
         return 0
@@ -1749,9 +1945,9 @@ export default {
     },
     async loadHoldingTrendHistories() {
       const uniqueTickers = [...new Set(
-        this.assets
-          .map(asset => this.normalizeHistoryTicker(asset.ticker))
-          .filter(Boolean)
+          this.assets
+              .map(asset => this.normalizeHistoryTicker(asset.ticker))
+              .filter(Boolean)
       )]
 
       if (!uniqueTickers.length) {
@@ -1760,7 +1956,7 @@ export default {
       }
 
       const results = await Promise.allSettled(
-        uniqueTickers.map(async ticker => [ticker, await fetchHistoryJson(ticker)])
+          uniqueTickers.map(async ticker => [ticker, await fetchHistoryJson(ticker)])
       )
 
       this.holdingTrendHistories = results.reduce((historyMap, result) => {
@@ -1784,8 +1980,8 @@ export default {
       }
 
       const sortedPrices = [...prices]
-        .filter(point => point?.date && point?.close != null)
-        .sort((first, second) => new Date(first.date) - new Date(second.date))
+          .filter(point => point?.date && point?.close != null)
+          .sort((first, second) => new Date(first.date) - new Date(second.date))
 
       if (!sortedPrices.length) {
         return []
@@ -1811,8 +2007,8 @@ export default {
       }
 
       const latestPoint = [...prices]
-        .filter(point => point?.date && point?.close != null)
-        .sort((first, second) => new Date(second.date) - new Date(first.date))[0]
+          .filter(point => point?.date && point?.close != null)
+          .sort((first, second) => new Date(second.date) - new Date(first.date))[0]
 
       return latestPoint ? Number(latestPoint.close || 0) : null
     },
@@ -1859,16 +2055,16 @@ export default {
     getTickerTransactions(ticker) {
       const normalizedTicker = this.normalizeHistoryTicker(ticker)
       return this.transactions
-        .filter(transaction => this.normalizeHistoryTicker(transaction.ticker) === normalizedTicker)
-        .slice()
-        .sort((first, second) => {
-          const firstTime = new Date(first.transactionDate).getTime()
-          const secondTime = new Date(second.transactionDate).getTime()
-          if (firstTime !== secondTime) {
-            return firstTime - secondTime
-          }
-          return Number(first.id || 0) - Number(second.id || 0)
-        })
+          .filter(transaction => this.normalizeHistoryTicker(transaction.ticker) === normalizedTicker)
+          .slice()
+          .sort((first, second) => {
+            const firstTime = new Date(first.transactionDate).getTime()
+            const secondTime = new Date(second.transactionDate).getTime()
+            if (firstTime !== secondTime) {
+              return firstTime - secondTime
+            }
+            return Number(first.id || 0) - Number(second.id || 0)
+          })
     },
     getDayKey(value) {
       const date = value instanceof Date ? value : new Date(value)
@@ -1903,9 +2099,9 @@ export default {
 
       pointsToUse.forEach(point => {
         while (
-          transactionIndex < transactions.length &&
-          this.getDayKey(transactions[transactionIndex].transactionDate) <= point.date
-        ) {
+            transactionIndex < transactions.length &&
+            this.getDayKey(transactions[transactionIndex].transactionDate) <= point.date
+            ) {
           const transaction = transactions[transactionIndex]
           const transactionQuantity = Number(transaction.quantity || 0)
           const transactionPrice = Number(transaction.price || 0)
@@ -1949,9 +2145,9 @@ export default {
     },
     getPortfolioPnlTrendPoints(range = '1M') {
       const normalizedTickers = [...new Set(
-        this.transactions
-          .map(transaction => this.normalizeHistoryTicker(transaction.ticker))
-          .filter(Boolean)
+          this.transactions
+              .map(transaction => this.normalizeHistoryTicker(transaction.ticker))
+              .filter(Boolean)
       )]
 
       if (!normalizedTickers.length) {
@@ -2132,12 +2328,12 @@ export default {
       const viewportPadding = 12
       const centeredLeft = triggerRect.left + (triggerRect.width / 2) - (popoverWidth / 2)
       const left = Math.min(
-        window.innerWidth - popoverWidth - viewportPadding,
-        Math.max(viewportPadding, centeredLeft)
+          window.innerWidth - popoverWidth - viewportPadding,
+          Math.max(viewportPadding, centeredLeft)
       )
       const top = triggerRect.top >= popoverHeight + 16
-        ? triggerRect.top - popoverHeight - 10
-        : Math.min(window.innerHeight - popoverHeight - viewportPadding, triggerRect.bottom + 10)
+          ? triggerRect.top - popoverHeight - 10
+          : Math.min(window.innerHeight - popoverHeight - viewportPadding, triggerRect.bottom + 10)
 
       this.hoveredTrend = {
         ticker: this.normalizeHistoryTicker(asset.ticker),
@@ -2238,8 +2434,8 @@ a {
   top: 0;
   height: 100vh;
   background:
-    radial-gradient(circle at top left, rgba(163, 1, 19, 0.12), transparent 34%),
-    linear-gradient(180deg, #fffdfc 0%, #f6f0ed 100%);
+      radial-gradient(circle at top left, rgba(163, 1, 19, 0.12), transparent 34%),
+      linear-gradient(180deg, #fffdfc 0%, #f6f0ed 100%);
   backdrop-filter: blur(24px);
   border-right: 1px solid rgba(163, 1, 19, 0.08);
   box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.65);
@@ -2389,10 +2585,10 @@ a {
   inset: 3px;
   border: none;
   background:
-    linear-gradient(var(--muted), var(--muted)) left top/5px 5px no-repeat,
-    linear-gradient(var(--muted), var(--muted)) right top/5px 5px no-repeat,
-    linear-gradient(var(--muted), var(--muted)) left bottom/5px 5px no-repeat,
-    linear-gradient(var(--muted), var(--muted)) right bottom/5px 5px no-repeat;
+      linear-gradient(var(--muted), var(--muted)) left top/5px 5px no-repeat,
+      linear-gradient(var(--muted), var(--muted)) right top/5px 5px no-repeat,
+      linear-gradient(var(--muted), var(--muted)) left bottom/5px 5px no-repeat,
+      linear-gradient(var(--muted), var(--muted)) right bottom/5px 5px no-repeat;
 }
 
 .nav-icon-holdings::before {
@@ -2407,9 +2603,9 @@ a {
   height: 10px;
   border: none;
   background:
-    linear-gradient(var(--muted), var(--muted)) left bottom/3px 6px no-repeat,
-    linear-gradient(var(--muted), var(--muted)) center bottom/3px 10px no-repeat,
-    linear-gradient(var(--muted), var(--muted)) right bottom/3px 8px no-repeat;
+      linear-gradient(var(--muted), var(--muted)) left bottom/3px 6px no-repeat,
+      linear-gradient(var(--muted), var(--muted)) center bottom/3px 10px no-repeat,
+      linear-gradient(var(--muted), var(--muted)) right bottom/3px 8px no-repeat;
 }
 
 .nav-icon-support::before {
@@ -2473,8 +2669,8 @@ a {
   inset: 6px;
   border-radius: 50%;
   background:
-    linear-gradient(var(--muted), var(--muted)) center/2px 22px no-repeat,
-    linear-gradient(var(--muted), var(--muted)) center/22px 2px no-repeat;
+      linear-gradient(var(--muted), var(--muted)) center/2px 22px no-repeat,
+      linear-gradient(var(--muted), var(--muted)) center/22px 2px no-repeat;
 }
 
 .profile-chip {
@@ -3765,6 +3961,213 @@ a {
   margin-top: 10px;
 }
 
+.ai-fab {
+  position: fixed;
+  right: 28px;
+  bottom: 28px;
+  width: 74px;
+  height: 74px;
+  border: none;
+  border-radius: 24px;
+  background: linear-gradient(145deg, rgba(163, 1, 19, 0.18), rgba(10, 108, 116, 0.22));
+  box-shadow: 0 18px 40px rgba(26, 28, 28, 0.2);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  z-index: 120;
+}
+
+.ai-fab img {
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
+}
+
+.ai-chat-panel {
+  position: fixed;
+  right: 28px;
+  top: 24px;
+  bottom: 108px;
+  width: min(500px, calc(100vw - 32px));
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 18px;
+  border-radius: 0.85rem;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 32px 72px rgba(163, 1, 19, 0.14);
+  z-index: 121;
+}
+
+.ai-chat-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.ai-chat-title {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.ai-chat-title img {
+  width: 42px;
+  height: 42px;
+  border-radius: 16px;
+  object-fit: contain;
+  background: var(--surface-low);
+  padding: 6px;
+}
+
+.ai-chat-title strong {
+  display: block;
+  font-family: 'Manrope', sans-serif;
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.ai-chat-title p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+.ai-close {
+  border: none;
+  background: var(--surface-low);
+  color: var(--muted);
+  padding: 12px 16px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+}
+
+.ai-chat-messages {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-right: 4px;
+}
+
+.ai-message {
+  max-width: 92%;
+  padding: 16px 18px;
+  border-radius: 0.75rem;
+  line-height: 1.65;
+}
+
+.ai-message p {
+  margin: 6px 0 0;
+}
+
+.ai-message-role {
+  font-size: 0.68rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.ai-message-assistant {
+  align-self: flex-start;
+  background: var(--surface-low);
+  box-shadow: inset 0 0 0 1px rgba(163, 1, 19, 0.08);
+}
+
+.ai-message-user {
+  align-self: flex-end;
+  background: rgba(10, 108, 116, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(10, 108, 116, 0.12);
+}
+
+.ai-message-rich {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ai-message-rich h4,
+.ai-message-rich h5,
+.ai-message-rich p,
+.ai-message-rich ul {
+  margin: 0;
+}
+
+.ai-message-rich h4 {
+  font-family: 'Manrope', sans-serif;
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--primary);
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(163, 1, 19, 0.1);
+}
+
+.ai-message-rich h5 {
+  font-family: 'Manrope', sans-serif;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #00557a;
+}
+
+.ai-message-rich p,
+.ai-message-rich li {
+  color: var(--text);
+  font-size: 0.95rem;
+  line-height: 1.8;
+}
+
+.ai-message-rich ul {
+  padding-left: 20px;
+  display: grid;
+  gap: 8px;
+}
+
+.ai-chat-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ai-chat-form textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 108px;
+  border: none;
+  background: var(--surface-low);
+  padding: 14px 16px;
+  color: var(--text);
+}
+
+.ai-chat-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.ai-error {
+  margin: 0;
+}
+
+.chat-pop-enter-active,
+.chat-pop-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.chat-pop-enter,
+.chat-pop-leave-to {
+  opacity: 0;
+  transform: translateY(12px) scale(0.98);
+}
+
 @media (max-width: 1180px) {
   .ledger-shell {
     grid-template-columns: 1fr;
@@ -3881,6 +4284,25 @@ a {
   .asset-detail-side,
   .transaction-modal {
     padding: 22px;
+  }
+
+  .ai-chat-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ai-fab {
+    right: 16px;
+    bottom: 16px;
+    width: 64px;
+    height: 64px;
+  }
+
+  .ai-chat-panel {
+    right: 16px;
+    top: 16px;
+    bottom: 88px;
+    width: calc(100vw - 32px);
   }
 }
 </style>
