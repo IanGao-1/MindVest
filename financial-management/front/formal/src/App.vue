@@ -148,9 +148,23 @@
                 <span class="section-tag">Holdings Ledger</span>
                 <h2>Current Holdings</h2>
               </div>
-              <div class="holdings-summary">
-                <span>{{ assets.length }} active rows</span>
-                <span>{{ formatCurrency(totalPnL) }} unrealized</span>
+              <div class="holdings-controls">
+                <label class="holdings-filter">
+                  <span>Filter</span>
+                  <select v-model="holdingsFilter">
+                    <option
+                      v-for="option in holdingsFilterOptions"
+                      :key="option.value"
+                      :value="option.value"
+                    >
+                      {{ option.label }}
+                    </option>
+                  </select>
+                </label>
+                <div class="holdings-summary">
+                  <span>{{ filteredAssets.length }} active rows</span>
+                  <span>{{ formatCurrency(filteredHoldingsPnL) }} unrealized</span>
+                </div>
               </div>
             </div>
 
@@ -171,7 +185,7 @@
                 </thead>
                 <tbody>
                   <tr
-                    v-for="asset in assets"
+                    v-for="asset in filteredAssets"
                     :key="asset.id"
                     class="holding-row"
                     @click="openAssetDetails(asset)"
@@ -185,7 +199,9 @@
                       </div>
                     </td>
                     <td class="ticker-cell">{{ asset.ticker }}</td>
-                    <td>{{ asset.type }}</td>
+                    <td>
+                      <span class="type-pill" :style="getTypeBadgeStyle(asset.type)">{{ formatAssetTypeLabel(asset.type) }}</span>
+                    </td>
                     <td>{{ formatNumber(asset.quantity) }}</td>
                     <td>{{ formatCurrency(asset.avgCost) }}</td>
                     <td>{{ formatCurrency(asset.currentPrice) }}</td>
@@ -203,15 +219,102 @@
                         <svg class="sparkline" viewBox="0 0 96 28" preserveAspectRatio="none">
                           <path
                             :d="sparklinePath(getHoldingTrendSeries(asset.ticker, '1M'), 96, 28)"
-                            :class="['sparkline-path', holdingValueClass(getHoldingTrendDelta(asset.ticker, '1M'))]"
+                            :class="['sparkline-path', getTrendClass(getHoldingTrendSeries(asset.ticker, '1M'))]"
                           />
                         </svg>
                       </div>
                       <span v-else class="trend-empty">--</span>
                     </td>
                   </tr>
+                  <tr v-if="!filteredAssets.length">
+                    <td colspan="9" class="holdings-empty-state">No holdings in this category.</td>
+                  </tr>
                 </tbody>
               </table>
+            </div>
+
+            <div class="holdings-meta-strip">
+              <article class="holding-summary-card">
+                <span class="section-tag">Assets</span>
+                <div class="holding-summary-body">
+                  <div class="holding-summary-column holding-summary-column-left">
+                    <h3>{{ filteredAssets.length }}</h3>
+                    <div class="holding-summary-footer holding-summary-footer-inline">
+                      <p>{{ filteredAssets.length === 1 ? 'active holding in the ledger' : 'active holdings in the ledger' }}</p>
+                    </div>
+                  </div>
+                </div>
+              </article>
+              <article class="holding-summary-card holding-summary-accent" :style="getHoldingSummaryCardStyle(largestPosition?.type)">
+                <span class="section-tag">Largest Position</span>
+                <div v-if="largestPosition">
+                  <div class="holding-summary-body holding-summary-body-split">
+                    <div class="holding-summary-column holding-summary-column-left">
+                      <h3>{{ largestPosition.ticker }}</h3>
+                      <div class="holding-summary-footer holding-summary-footer-inline">
+                        <p>{{ largestPosition.name }}</p>
+                      </div>
+                    </div>
+                    <div class="holding-summary-pill" :class="holdingValueClass(getAssetPerformanceRate(largestPosition))">
+                      <svg
+                        class="holding-summary-pill-icon"
+                        :class="{ 'is-down': getAssetPerformanceRate(largestPosition) < 0 }"
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                      >
+                        <path d="M4 16 L10 10 L14 14 L20 8" />
+                        <path d="M15.5 8 H20 V12.5" />
+                      </svg>
+                      <strong class="holding-summary-rate">
+                        {{ formatPercent(Math.abs(getAssetPerformanceRate(largestPosition))) }}
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+                <div v-else>
+                  <div class="holding-summary-body">
+                    <h3>--</h3>
+                  </div>
+                  <div class="holding-summary-footer">
+                    <p>No active holdings yet</p>
+                  </div>
+                </div>
+              </article>
+              <article class="holding-summary-card holding-summary-accent" :style="getHoldingSummaryCardStyle(topPerformer?.type)">
+                <span class="section-tag">Top Performer</span>
+                <div v-if="topPerformer">
+                  <div class="holding-summary-body holding-summary-body-split">
+                    <div class="holding-summary-column holding-summary-column-left">
+                      <h3>{{ topPerformer.ticker }}</h3>
+                      <div class="holding-summary-footer holding-summary-footer-inline">
+                        <p>{{ topPerformer.name }}</p>
+                      </div>
+                    </div>
+                    <div class="holding-summary-pill" :class="holdingValueClass(getAssetPerformanceRate(topPerformer))">
+                      <svg
+                        class="holding-summary-pill-icon"
+                        :class="{ 'is-down': getAssetPerformanceRate(topPerformer) < 0 }"
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                      >
+                        <path d="M4 16 L10 10 L14 14 L20 8" />
+                        <path d="M15.5 8 H20 V12.5" />
+                      </svg>
+                      <strong class="holding-summary-rate">
+                        {{ formatPercent(Math.abs(getAssetPerformanceRate(topPerformer))) }}
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+                <div v-else>
+                  <div class="holding-summary-body">
+                    <h3>--</h3>
+                  </div>
+                  <div class="holding-summary-footer">
+                    <p>No active holdings yet</p>
+                  </div>
+                </div>
+              </article>
             </div>
           </article>
         </section>
@@ -225,7 +328,7 @@
               </div>
             </div>
             <div class="activity-list">
-              <div v-for="transaction in transactions.slice(0, 5)" :key="transaction.id" class="activity-row">
+              <div v-for="transaction in transactions" :key="transaction.id" class="activity-row">
                 <div class="activity-grid">
                   <div class="activity-cell">
                     <span>Date</span>
@@ -245,7 +348,7 @@
                   </div>
                   <div class="activity-cell activity-amount">
                     <span>Amount</span>
-                    <strong :class="holdingValueClass(transaction.transactionType === 'BUY' ? 1 : -1)">
+                    <strong class="activity-amount-value">
                       {{ formatCurrency(transaction.totalAmount) }}
                     </strong>
                   </div>
@@ -383,12 +486,12 @@
         <svg class="sparkline sparkline-large" viewBox="0 0 180 72" preserveAspectRatio="none">
           <path
             :d="sparklinePath(hoveredTrend.series, 180, 72)"
-            :class="['sparkline-path', holdingValueClass(hoveredTrend.delta)]"
+            :class="['sparkline-path', getTrendClass(hoveredTrend.series)]"
           />
         </svg>
         <div class="trend-popover-meta">
           <span>{{ formatCurrency(hoveredTrend.firstValue) }}</span>
-          <span :class="holdingValueClass(hoveredTrend.delta)">{{ formatSigned(hoveredTrend.delta) }}</span>
+          <span :class="getTrendClass(hoveredTrend.series)">{{ formatSigned(hoveredTrend.delta) }}</span>
           <span>{{ formatCurrency(hoveredTrend.lastValue) }}</span>
         </div>
       </div>
@@ -537,7 +640,7 @@
                 <div ref="detailPerformanceChart" class="chart detail-performance-chart"></div>
                 <div class="detail-chart-meta">
                   <span>{{ formatCurrency(selectedAssetTrendFirstClose) }}</span>
-                  <span :class="holdingValueClass(selectedAssetTrendDelta)">
+                  <span :class="getTrendClass(selectedAssetTrendSeries)">
                     {{ formatSigned(selectedAssetTrendDelta) }}
                   </span>
                   <span>{{ formatCurrency(selectedAssetTrendLastClose) }}</span>
@@ -601,10 +704,9 @@
               </div>
             </article>
 
-            <article class="detail-side-card">
+            <article class="detail-side-card detail-side-card-actions">
               <span class="section-tag">Actions</span>
-              <h3>Record Next Move</h3>
-              <p>Open the ledger form with this holding already staged.</p>
+              <h3>Next Move</h3>
               <div class="detail-action-stack">
                 <button class="sidebar-primary" type="button" @click="startAssetTransaction">Add Transaction</button>
               </div>
@@ -711,6 +813,16 @@ const HISTORY_TICKER_ALIASES = {
 }
 
 const ALLOCATION_COLORS = ['#a30113', '#45525b', '#d6dadd', '#0a6c74', '#d48806', '#7c4dff']
+const TYPE_COLOR_MAP = {
+  STOCK: '#a30113',
+  'EQUITY ETF': '#d7656f',
+  'BOND ETF': '#45525b',
+  'COMMODITY ETF': '#d48806',
+  'REAL ESTATE ETF': '#7c4dff',
+  FOREX: '#0a6c74',
+  CASH: '#2d8a5f',
+  UNKNOWN: '#7d8590'
+}
 
 export default {
   name: 'App',
@@ -726,6 +838,7 @@ export default {
       historyRange: '1M',
       historyMetric: 'open',
       portfolioTrendRange: '1M',
+      holdingsFilter: 'ALL',
       activeSection: 'overview',
       historyLoading: false,
       historyError: '',
@@ -786,9 +899,41 @@ export default {
         .map(([name, value], index) => ({
           name,
           value,
-          color: ALLOCATION_COLORS[index % ALLOCATION_COLORS.length],
+          color: TYPE_COLOR_MAP[name] || ALLOCATION_COLORS[index % ALLOCATION_COLORS.length],
           percentLabel: totalValue > 0 ? `${((value / totalValue) * 100).toFixed(1)}%` : '0.0%'
         }))
+    },
+    holdingsFilterOptions() {
+      return [
+        { value: 'ALL', label: 'All' },
+        ...this.allocationBreakdown.map(item => ({
+          value: item.name,
+          label: this.formatAssetTypeLabel(item.name)
+        }))
+      ]
+    },
+    filteredAssets() {
+      if (this.holdingsFilter === 'ALL') {
+        return this.assets
+      }
+      return this.assets.filter(asset => (asset.type || 'UNKNOWN') === this.holdingsFilter)
+    },
+    filteredHoldingsPnL() {
+      return this.filteredAssets.reduce((sum, asset) => sum + Number(asset.unrealizedPnL || 0), 0)
+    },
+    largestPosition() {
+      if (!this.filteredAssets.length) {
+        return null
+      }
+      return this.filteredAssets.slice().sort((first, second) => Number(second.currentValue || 0) - Number(first.currentValue || 0))[0]
+    },
+    topPerformer() {
+      if (!this.filteredAssets.length) {
+        return null
+      }
+      return this.filteredAssets
+        .slice()
+        .sort((first, second) => this.getAssetPerformanceRate(second) - this.getAssetPerformanceRate(first))[0]
     },
     availableAssetOptions() {
       return Object.entries(TICKER_PRESETS)
@@ -1150,6 +1295,8 @@ export default {
         currency: 'USD',
         maximumFractionDigits: 2
       }).format(Number(value))
+        .replace(/^US\$/, '$')
+        .replace(/^-US\$/, '-$')
     },
     formatCurrencyParts(value) {
       const formatted = this.formatCurrency(value)
@@ -1191,6 +1338,13 @@ export default {
       }
       return `${(Number(value) * 100).toFixed(2)}%`
     },
+    formatSignedPercent(value) {
+      if (value == null || Number.isNaN(Number(value))) {
+        return '--'
+      }
+      const numeric = Number(value) * 100
+      return `${numeric >= 0 ? '+' : ''}${numeric.toFixed(2)}%`
+    },
     formatSigned(value) {
       if (value == null || Number.isNaN(Number(value))) {
         return '--'
@@ -1215,6 +1369,66 @@ export default {
     },
     holdingValueClass(value) {
       return Number(value || 0) >= 0 ? 'text-holding-rise' : 'text-holding-fall'
+    },
+    getSeriesTrendDelta(series) {
+      const numericSeries = (series || [])
+        .map(value => Number(value))
+        .filter(value => !Number.isNaN(value))
+
+      if (numericSeries.length < 2) {
+        return 0
+      }
+
+      return numericSeries[numericSeries.length - 1] - numericSeries[numericSeries.length - 2]
+    },
+    getTrendColor(series) {
+      return this.getSeriesTrendDelta(series) >= 0 ? '#ba1a1a' : '#1f8a52'
+    },
+    getTrendAreaColor(series) {
+      return this.getSeriesTrendDelta(series) >= 0 ? 'rgba(186, 26, 26, 0.12)' : 'rgba(31, 138, 82, 0.12)'
+    },
+    getTrendClass(series) {
+      return this.getSeriesTrendDelta(series) >= 0 ? 'text-holding-rise' : 'text-holding-fall'
+    },
+    getAllocationColor(assetType) {
+      return TYPE_COLOR_MAP[String(assetType || 'UNKNOWN').toUpperCase()] || ALLOCATION_COLORS[0]
+    },
+    getTypeBadgeStyle(assetType) {
+      const color = this.getAllocationColor(assetType)
+      return {
+        color,
+        borderColor: `${color}33`,
+        backgroundColor: `${color}12`
+      }
+    },
+    getHoldingSummaryCardStyle(assetType) {
+      const color = this.getAllocationColor(assetType)
+      return {
+        boxShadow: `inset 0 -4px 0 ${color}`
+      }
+    },
+    getAssetPerformanceRate(asset) {
+      const explicitRate = Number(asset?.unrealizedPnLRate)
+      if (asset && asset.unrealizedPnLRate != null && !Number.isNaN(explicitRate)) {
+        return explicitRate
+      }
+      const costBasis = Number(asset?.costBasis || 0)
+      if (costBasis <= 0) {
+        return 0
+      }
+      return Number(asset?.unrealizedPnL || 0) / costBasis
+    },
+    formatAssetTypeLabel(assetType) {
+      const type = String(assetType || 'UNKNOWN').toUpperCase()
+      return {
+        STOCK: 'Stocks',
+        'EQUITY ETF': 'Equities',
+        'BOND ETF': 'Bonds',
+        'COMMODITY ETF': 'Commodities',
+        'REAL ESTATE ETF': 'Real Estate',
+        FOREX: 'Forex',
+        CASH: 'Cash'
+      }[type] || type
     },
     getChartInst(key, el) {
       if (!this.charts[key] && el) {
@@ -1272,6 +1486,8 @@ export default {
         this.quote.price
       ].map(value => (value == null || Number.isNaN(Number(value)) ? null : Number(value)))
       const quoteRange = this.buildChartRange(quoteSeries)
+      const trendColor = this.getTrendColor(quoteSeries)
+      const areaColor = this.getTrendAreaColor(quoteSeries)
 
       chart.setOption({
         grid: {
@@ -1299,13 +1515,13 @@ export default {
             symbolSize: 8,
             lineStyle: {
               width: 3,
-              color: '#ba1a1a'
+              color: trendColor
             },
             itemStyle: {
-              color: '#ba1a1a'
+              color: trendColor
             },
             areaStyle: {
-              color: 'rgba(186, 26, 26, 0.12)'
+              color: areaColor
             },
             data: quoteSeries
           }
@@ -1347,6 +1563,8 @@ export default {
       }
       const metricSeries = historyPoints.map((point, index) => this.getHistoryMetricPointValue(historyPoints, index, this.historyMetric))
       const historyRange = this.buildChartRange(metricSeries)
+      const trendColor = this.getTrendColor(metricSeries)
+      const areaColor = this.getTrendAreaColor(metricSeries)
 
       chart.setOption({
         tooltip: {
@@ -1397,13 +1615,13 @@ export default {
             showSymbol: false,
             lineStyle: {
               width: 3,
-              color: '#ba1a1a'
+              color: trendColor
             },
             itemStyle: {
-              color: '#ba1a1a'
+              color: trendColor
             },
             areaStyle: {
-              color: 'rgba(186, 26, 26, 0.12)'
+              color: areaColor
             },
             data: metricSeries
           }
@@ -1424,8 +1642,8 @@ export default {
 
       const pnlSeries = points.map(point => Number(point.pnl || 0))
       const range = this.buildChartRange(pnlSeries)
-      const latestPnl = pnlSeries[pnlSeries.length - 1] || 0
-      const trendColor = latestPnl >= 0 ? '#ba1a1a' : '#1f8a52'
+      const trendColor = this.getTrendColor(pnlSeries)
+      const areaColor = this.getTrendAreaColor(pnlSeries)
 
       chart.setOption({
         tooltip: {
@@ -1459,7 +1677,7 @@ export default {
             lineStyle: { width: 3, color: trendColor },
             itemStyle: { color: trendColor },
             areaStyle: {
-              color: latestPnl >= 0 ? 'rgba(186, 26, 26, 0.12)' : 'rgba(31, 138, 82, 0.12)'
+              color: areaColor
             },
             markLine: {
               symbol: 'none',
@@ -1807,8 +2025,8 @@ export default {
 
       const pnlSeries = pnlPoints.map(point => Number(point.pnl || 0))
       const pnlRange = this.buildChartRange(pnlSeries)
-      const latestPnl = pnlSeries.length ? pnlSeries[pnlSeries.length - 1] : 0
-      const trendColor = latestPnl >= 0 ? '#ba1a1a' : '#1f8a52'
+      const trendColor = this.getTrendColor(pnlSeries)
+      const areaColor = this.getTrendAreaColor(pnlSeries)
 
       chart.setOption({
         tooltip: {
@@ -1842,7 +2060,7 @@ export default {
             lineStyle: { width: 3, color: trendColor },
             itemStyle: { color: trendColor },
             areaStyle: {
-              color: latestPnl >= 0 ? 'rgba(186, 26, 26, 0.12)' : 'rgba(31, 138, 82, 0.12)'
+              color: areaColor
             },
             markLine: {
               symbol: 'none',
@@ -2459,7 +2677,7 @@ a {
 .hero-pill {
   padding: 8px 14px;
   border-radius: 999px;
-  background: #d7e4ec;
+  background: #f1f2f4;
   font-size: 0.78rem;
   font-weight: 700;
 }
@@ -2470,7 +2688,7 @@ a {
   gap: 8px;
   padding: 12px 18px;
   margin-bottom: 10px;
-  background: #eaf3f8;
+  background: #f1f2f4;
   color: var(--gain);
   font-family: 'Manrope', sans-serif;
   font-size: 0.9rem;
@@ -2551,6 +2769,34 @@ a {
   margin: 6px 0 0;
   color: var(--muted);
   font-size: 0.9rem;
+}
+
+.holdings-controls {
+  display: flex;
+  align-items: flex-end;
+  gap: 18px;
+}
+
+.holdings-filter {
+  display: grid;
+  gap: 8px;
+  min-width: 170px;
+}
+
+.holdings-filter span {
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+
+.holdings-filter select {
+  border: none;
+  border-bottom: 2px solid rgba(143, 112, 108, 0.8);
+  background: transparent;
+  padding: 10px 0;
+  color: var(--text);
 }
 
 .chart {
@@ -2667,6 +2913,12 @@ a {
   vertical-align: middle;
 }
 
+.holdings-empty-state {
+  text-align: center;
+  color: var(--muted);
+  font-weight: 600;
+}
+
 .ledger-table tbody tr:nth-child(even) td {
   background: #f9f9f9;
 }
@@ -2713,6 +2965,152 @@ a {
   color: var(--primary);
 }
 
+.type-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.holdings-meta-strip {
+  display: grid;
+  grid-template-columns: 0.7fr 1fr 1fr;
+  gap: 18px;
+  margin-top: 22px;
+}
+
+.holding-summary-card {
+  padding: 26px 28px;
+  background: linear-gradient(180deg, #fbfbfb 0%, #f6f6f6 100%);
+  border-radius: 0.6rem;
+  box-shadow: inset 0 -4px 0 rgba(163, 1, 19, 0.08);
+  min-height: 184px;
+  display: flex;
+  flex-direction: column;
+}
+
+.holding-summary-card h3 {
+  margin: 16px 0 4px;
+  font-family: 'Manrope', sans-serif;
+  font-size: 2.4rem;
+  line-height: 0.95;
+  letter-spacing: -0.05em;
+}
+
+.holding-summary-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.holding-summary-card strong {
+  display: block;
+  font-family: 'Manrope', sans-serif;
+  font-size: 1.35rem;
+  font-weight: 800;
+}
+
+.holding-summary-accent {
+  justify-content: flex-start;
+}
+
+.holding-summary-body {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding-top: 6px;
+}
+
+.holding-summary-body-centered {
+  justify-content: center;
+  text-align: center;
+}
+
+.holding-summary-body-split {
+  justify-content: space-between;
+  gap: 20px;
+  align-items: center;
+}
+
+.holding-summary-footer {
+  min-height: 40px;
+  display: flex;
+  align-items: flex-end;
+}
+
+.holding-summary-body-centered + .holding-summary-footer {
+  justify-content: center;
+  text-align: center;
+}
+
+.holding-summary-column {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.holding-summary-column-left {
+  text-align: left;
+}
+
+.holding-summary-footer-inline {
+  min-height: 0;
+  margin-top: 12px;
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.holding-summary-rate {
+  text-align: right;
+  white-space: nowrap;
+  font-size: 1.55rem;
+  line-height: 0.95;
+  letter-spacing: -0.05em;
+}
+
+.holding-summary-pill {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  border-radius: 999px;
+  background: #f1f2f4;
+}
+
+.holding-summary-pill.text-holding-rise {
+  color: var(--gain);
+}
+
+.holding-summary-pill.text-holding-fall {
+  color: var(--loss);
+}
+
+.holding-summary-pill-icon {
+  width: 28px;
+  height: 28px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex: 0 0 auto;
+}
+
+.holding-summary-pill-icon.is-down {
+  transform: rotate(180deg);
+}
+
 .compact-card {
   padding: 24px;
 }
@@ -2753,11 +3151,27 @@ a {
 .activity-list {
   display: grid;
   gap: 16px;
+  max-height: 452px;
+  overflow-y: auto;
+  padding-right: 8px;
 }
 
 .activity-row {
   padding-bottom: 16px;
   border-bottom: 1px solid rgba(228, 190, 186, 0.2);
+}
+
+.activity-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.activity-list::-webkit-scrollbar-thumb {
+  background: rgba(84, 96, 103, 0.28);
+  border-radius: 999px;
+}
+
+.activity-list::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .activity-grid {
@@ -2782,6 +3196,10 @@ a {
 
 .activity-amount {
   text-align: right;
+}
+
+.activity-amount-value {
+  color: #00557a;
 }
 
 .insight-grid {
@@ -3136,14 +3554,26 @@ a {
 }
 
 .detail-action-stack {
-  margin-top: 18px;
-  display: grid;
-  gap: 12px;
+  margin-top: 12px;
+  display: flex;
 }
 
 .detail-action-stack .sidebar-primary,
 .detail-action-stack .sidebar-secondary {
-  width: 100%;
+  width: auto;
+}
+
+.detail-side-card-actions {
+  padding: 18px 20px;
+}
+
+.detail-side-card-actions h3 {
+  font-size: 1.05rem;
+}
+
+.detail-side-card-actions .sidebar-primary {
+  padding: 12px 18px;
+  font-size: 0.74rem;
 }
 
 .detail-empty-state {
@@ -3414,6 +3844,12 @@ a {
     align-items: stretch;
   }
 
+  .holdings-controls {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
   .site-footer,
   .site-footer-links {
     flex-direction: column;
@@ -3423,6 +3859,10 @@ a {
 
   .activity-grid {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .holdings-meta-strip {
+    grid-template-columns: 1fr;
   }
 
   .mini-metric-wide {
