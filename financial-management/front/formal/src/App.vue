@@ -335,6 +335,10 @@
                     <strong>{{ formatDateTime(transaction.transactionDate) }}</strong>
                   </div>
                   <div class="activity-cell">
+                    <span>Type</span>
+                    <strong>{{ transaction.transactionType }}</strong>
+                  </div>
+                  <div class="activity-cell">
                     <span>Ticker</span>
                     <strong>{{ transaction.ticker }}</strong>
                   </div>
@@ -3372,7 +3376,7 @@ a {
 
 .activity-grid {
   display: grid;
-  grid-template-columns: 1.2fr 0.8fr 1.3fr 0.9fr 1fr;
+  grid-template-columns: 1.2fr 0.7fr 0.8fr 1.2fr 0.9fr 1fr;
   gap: 18px;
   align-items: start;
 }
