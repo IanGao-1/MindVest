@@ -30,11 +30,44 @@ public class AssetTransactionService {
     private static final Map<String, String> DEFAULT_ASSET_NAMES = Arrays.stream(new String[][]{
             {"AAPL", "Apple Inc."},
             {"TSLA", "Tesla Inc."},
+            {"SPY", "SPDR S&P 500 ETF Trust"},
+            {"VOO", "Vanguard S&P 500 ETF"},
+            {"QQQ", "Invesco QQQ Trust"},
+            {"BND", "Vanguard Total Bond Market"},
+            {"TLT", "iShares 20+ Year Treasury Bond"},
+            {"IEF", "iShares 7-10 Year Treasury Bond"},
+            {"GLD", "SPDR Gold Shares"},
+            {"SLV", "iShares Silver Trust"},
+            {"USO", "United States Oil Fund"},
+            {"VNQ", "Vanguard Real Estate ETF"},
+            {"CNY", "Chinese Yuan"},
+            {"USD", "US Dollar"},
+            {"C", "Citigroup Inc."},
             {"MSFT", "Microsoft Corp."},
             {"AMZN", "Amazon.com Inc."},
             {"META", "Meta Platforms Inc."},
-            {"NVDA", "NVIDIA Corp."},
-            {"C", "Citigroup Inc."}
+            {"NVDA", "NVIDIA Corp."}
+    }).collect(Collectors.toMap(values -> values[0], values -> values[1]));
+    private static final Map<String, String> DEFAULT_ASSET_TYPES = Arrays.stream(new String[][]{
+            {"AAPL", "STOCK"},
+            {"TSLA", "STOCK"},
+            {"C", "STOCK"},
+            {"MSFT", "STOCK"},
+            {"AMZN", "STOCK"},
+            {"META", "STOCK"},
+            {"NVDA", "STOCK"},
+            {"SPY", "EQUITY ETF"},
+            {"VOO", "EQUITY ETF"},
+            {"QQQ", "EQUITY ETF"},
+            {"BND", "BOND ETF"},
+            {"TLT", "BOND ETF"},
+            {"IEF", "BOND ETF"},
+            {"GLD", "COMMODITY ETF"},
+            {"SLV", "COMMODITY ETF"},
+            {"USO", "COMMODITY ETF"},
+            {"VNQ", "REAL ESTATE ETF"},
+            {"CNY", "FOREX"},
+            {"USD", "FOREX"}
     }).collect(Collectors.toMap(values -> values[0], values -> values[1]));
 
     @Autowired
@@ -172,7 +205,7 @@ public class AssetTransactionService {
             asset = new Asset();
             asset.setTicker(ticker);
             asset.setName(resolveDefaultAssetName(ticker, transactionDTO.getAssetName()));
-            asset.setType(resolveDefaultAssetType(transactionDTO.getAssetType()));
+            asset.setType(resolveDefaultAssetType(ticker, transactionDTO.getAssetType()));
             asset.setQuantity(0D);
             asset.setAvgCost(0D);
             asset.setPurchaseDate(transactionDate);
@@ -257,7 +290,7 @@ public class AssetTransactionService {
     }
 
     private String resolveAssetType(Asset asset, AssetTransactionDTO transactionDTO) {
-        return asset != null ? asset.getType() : resolveDefaultAssetType(transactionDTO.getAssetType());
+        return asset != null ? asset.getType() : resolveDefaultAssetType(transactionDTO.getTicker(), transactionDTO.getAssetType());
     }
 
     private Double resolveCurrentPriceForBuy(Asset asset, AssetTransactionDTO transactionDTO) {
@@ -302,11 +335,12 @@ public class AssetTransactionService {
         return DEFAULT_ASSET_NAMES.getOrDefault(ticker, ticker);
     }
 
-    private String resolveDefaultAssetType(String providedType) {
+    private String resolveDefaultAssetType(String ticker, String providedType) {
         if (providedType != null && !providedType.trim().isEmpty()) {
             return providedType.trim().toUpperCase(Locale.ROOT);
         }
-        return "STOCK";
+        String normalizedTicker = ticker == null ? "" : ticker.trim().toUpperCase(Locale.ROOT);
+        return DEFAULT_ASSET_TYPES.getOrDefault(normalizedTicker, "STOCK");
     }
 
     private BigDecimal multiply(Double quantity, Double price) {
