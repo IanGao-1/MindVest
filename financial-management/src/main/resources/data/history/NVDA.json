@@ -1,15 +1,22 @@
 {
   "symbol" : "NVDA",
-  "lastRefreshed" : "2026-03-31",
+  "lastRefreshed" : "2026-04-01",
   "outputSize" : "Compact",
   "timeZone" : "US/Eastern",
   "prices" : [ {
+    "date" : "2026-04-01",
+    "open" : 176.0,
+    "high" : 177.37,
+    "low" : 174.75,
+    "close" : 175.75,
+    "volume" : 168132005
+  }, {
     "date" : "2026-03-31",
     "open" : 166.97,
     "high" : 174.62,
     "low" : 166.96,
     "close" : 174.4,
-    "volume" : 223391667
+    "volume" : 226181301
   }, {
     "date" : "2026-03-30",
     "open" : 168.78,

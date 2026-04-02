@@ -387,7 +387,7 @@
                   <span>View</span>
                   <select v-model="historyMetric">
                     <option value="open">Open</option>
-                    <option value="price">Close</option>
+                    <option value="price">Price</option>
                     <option value="previousClose">PC</option>
                     <option value="volume">Volume</option>
                     <option value="dayHigh">High</option>
@@ -909,7 +909,7 @@ export default {
       tickerInput: 'TSLA',
       historyTickerInput: 'AAPL',
       historyRange: '1M',
-      historyMetric: 'open',
+      historyMetric: 'price',
       portfolioTrendRange: '1M',
       holdingsFilter: 'ALL',
       activeSection: 'overview',
@@ -1021,7 +1021,7 @@ export default {
     selectedHistoryMetricLabel() {
       return {
         open: 'Open',
-        price: 'Close',
+        price: 'Price',
         previousClose: 'PC',
         volume: 'Volume',
         dayHigh: 'High',
@@ -1752,6 +1752,14 @@ export default {
       }
       return point.close
     },
+    getHistoryCandles(points) {
+      return (points || []).map(point => ([
+        Number(point.open || 0),
+        Number(point.close || 0),
+        Number(point.low || 0),
+        Number(point.high || 0)
+      ]))
+    },
     renderPortfolioHistoryChart() {
       const chart = this.getChartInst('portfolioHistory', this.$refs.portfolioHistoryChart)
       if (!chart) {
@@ -1767,6 +1775,130 @@ export default {
       const historyRange = this.buildChartRange(metricSeries)
       const trendColor = this.getTrendColor(metricSeries)
       const areaColor = this.getTrendAreaColor(metricSeries)
+      const categoryData = historyPoints.map(point => point.date)
+
+      if (this.historyMetric === 'price') {
+        const candleSeries = this.getHistoryCandles(historyPoints)
+        const candleValues = candleSeries.flat().filter(value => !Number.isNaN(Number(value)))
+        const candleRange = this.buildTightChartRange(candleValues, 0.05, 0.25)
+
+        chart.setOption({
+          tooltip: {
+            trigger: 'axis',
+            axisPointer: { type: 'cross' },
+            formatter: params => {
+              const point = Array.isArray(params) ? params[0] : params
+              const candle = point?.data || []
+              if (!candle.length) {
+                return ''
+              }
+
+              return `
+                <div style="min-width: 148px;">
+                  <div style="margin-bottom: 8px; color: #7c6c5d;">${point.axisValue}</div>
+                  <div style="display: grid; gap: 6px;">
+                    <div>Open: <strong>${this.formatCurrency(candle[0])}</strong></div>
+                    <div>Close: <strong>${this.formatCurrency(candle[1])}</strong></div>
+                    <div>Low: <strong>${this.formatCurrency(candle[2])}</strong></div>
+                    <div>High: <strong>${this.formatCurrency(candle[3])}</strong></div>
+                  </div>
+                </div>
+              `
+            }
+          },
+          grid: {
+            left: 56,
+            right: 24,
+            top: 24,
+            bottom: 40
+          },
+          xAxis: {
+            type: 'category',
+            data: categoryData,
+            boundaryGap: true
+          },
+          yAxis: {
+            type: 'value',
+            min: candleRange.min,
+            max: candleRange.max,
+            scale: true,
+            axisLabel: {
+              formatter: value => this.formatCompactCurrency(value)
+            }
+          },
+          series: [
+            {
+              type: 'candlestick',
+              data: candleSeries,
+              itemStyle: {
+                color: '#ba1a1a',
+                color0: '#1f8a52',
+                borderColor: '#ba1a1a',
+                borderColor0: '#1f8a52'
+              }
+            }
+          ]
+        })
+        return
+      }
+
+      if (this.historyMetric === 'volume') {
+        chart.setOption({
+          tooltip: {
+            trigger: 'axis',
+            formatter: params => {
+              const point = Array.isArray(params) ? params[0] : params
+              if (!point) {
+                return ''
+              }
+
+              return `
+                <div style="min-width: 126px;">
+                  <div style="margin-bottom: 8px; color: #7c6c5d;">${point.axisValue}</div>
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="width: 10px; height: 10px; border-radius: 50%; background: ${point.color}; display: inline-block;"></span>
+                    <span style="font-weight: 700;">${this.formatNumber(point.value)}</span>
+                  </div>
+                </div>
+              `
+            }
+          },
+          grid: {
+            left: 56,
+            right: 24,
+            top: 24,
+            bottom: 40
+          },
+          xAxis: {
+            type: 'category',
+            data: categoryData,
+            boundaryGap: true
+          },
+          yAxis: {
+            type: 'value',
+            min: historyRange.min,
+            max: historyRange.max,
+            axisLabel: {
+              formatter: value => this.formatNumber(value)
+            }
+          },
+          series: [
+            {
+              type: 'bar',
+              barMaxWidth: 14,
+              itemStyle: {
+                color: params => {
+                  const point = historyPoints[params.dataIndex]
+                  return Number(point?.close || 0) >= Number(point?.open || 0) ? '#ba1a1a' : '#1f8a52'
+                },
+                borderRadius: [4, 4, 0, 0]
+              },
+              data: metricSeries
+            }
+          ]
+        })
+        return
+      }
 
       chart.setOption({
         tooltip: {
@@ -1800,7 +1932,7 @@ export default {
         xAxis: {
           type: 'category',
           boundaryGap: false,
-          data: historyPoints.map(point => point.date)
+          data: categoryData
         },
         yAxis: {
           type: 'value',
@@ -2027,6 +2159,29 @@ export default {
       const minValue = Math.min(...numericValues)
       const maxValue = Math.max(...numericValues)
       if (minValue === maxValue) {
+        return {
+          min: minValue - padding,
+          max: maxValue + padding
+        }
+      }
+
+      return {
+        min: minValue - padding,
+        max: maxValue + padding
+      }
+    },
+    buildTightChartRange(values, paddingRatio = 0.04, minimumPadding = 0.5) {
+      const numericValues = (values || []).map(value => Number(value)).filter(value => !Number.isNaN(value))
+      if (!numericValues.length) {
+        return { min: 0, max: 100 }
+      }
+
+      const minValue = Math.min(...numericValues)
+      const maxValue = Math.max(...numericValues)
+      const spread = maxValue - minValue
+      const padding = Math.max(spread * paddingRatio, minimumPadding)
+
+      if (spread === 0) {
         return {
           min: minValue - padding,
           max: maxValue + padding

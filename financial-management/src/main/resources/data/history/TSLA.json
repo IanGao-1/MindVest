@@ -1,15 +1,22 @@
 {
   "symbol" : "TSLA",
-  "lastRefreshed" : "2026-03-31",
+  "lastRefreshed" : "2026-04-01",
   "outputSize" : "Compact",
   "timeZone" : "US/Eastern",
   "prices" : [ {
+    "date" : "2026-04-01",
+    "open" : 378.63,
+    "high" : 383.14,
+    "low" : 374.08,
+    "close" : 381.26,
+    "volume" : 58683752
+  }, {
     "date" : "2026-03-31",
     "open" : 361.51,
     "high" : 373.33,
     "low" : 361.0,
     "close" : 371.75,
-    "volume" : 73522399
+    "volume" : 75534934
   }, {
     "date" : "2026-03-30",
     "open" : 365.86,
@@ -703,5 +710,5 @@
     "low" : 440.71,
     "close" : 462.07,
     "volume" : 84911911
-  } ]
+  }  ]
 }

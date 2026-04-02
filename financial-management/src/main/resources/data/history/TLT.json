@@ -1,15 +1,22 @@
 {
   "symbol" : "TLT",
-  "lastRefreshed" : "2026-03-31",
+  "lastRefreshed" : "2026-04-01",
   "outputSize" : "Compact",
   "timeZone" : "US/Eastern",
   "prices" : [ {
+    "date" : "2026-04-01",
+    "open" : 86.28,
+    "high" : 86.705,
+    "low" : 86.23,
+    "close" : 86.26,
+    "volume" : 29867227
+  }, {
     "date" : "2026-03-31",
     "open" : 86.93,
     "high" : 87.16,
     "low" : 86.57,
     "close" : 86.69,
-    "volume" : 46985592
+    "volume" : 47112153
   }, {
     "date" : "2026-03-30",
     "open" : 86.63,

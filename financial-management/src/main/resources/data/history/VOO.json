@@ -1,15 +1,22 @@
 {
   "symbol" : "VOO",
-  "lastRefreshed" : "2026-03-31",
+  "lastRefreshed" : "2026-04-01",
   "outputSize" : "Compact",
   "timeZone" : "US/Eastern",
   "prices" : [ {
+    "date" : "2026-04-01",
+    "open" : 601.06,
+    "high" : 605.35,
+    "low" : 600.27,
+    "close" : 602.3,
+    "volume" : 11332486
+  }, {
     "date" : "2026-03-31",
     "open" : 587.35,
     "high" : 598.85,
     "low" : 586.5,
     "close" : 597.55,
-    "volume" : 11156292
+    "volume" : 12447254
   }, {
     "date" : "2026-03-30",
     "open" : 588.39,

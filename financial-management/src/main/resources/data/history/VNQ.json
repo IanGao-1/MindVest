@@ -1,15 +1,22 @@
 {
   "symbol" : "VNQ",
-  "lastRefreshed" : "2026-03-31",
+  "lastRefreshed" : "2026-04-01",
   "outputSize" : "Compact",
   "timeZone" : "US/Eastern",
   "prices" : [ {
+    "date" : "2026-04-01",
+    "open" : 88.695,
+    "high" : 89.36,
+    "low" : 88.55,
+    "close" : 89.02,
+    "volume" : 4412028
+  }, {
     "date" : "2026-03-31",
     "open" : 88.47,
     "high" : 89.425,
     "low" : 87.65,
     "close" : 88.7,
-    "volume" : 4923642
+    "volume" : 4928691
   }, {
     "date" : "2026-03-30",
     "open" : 87.91,

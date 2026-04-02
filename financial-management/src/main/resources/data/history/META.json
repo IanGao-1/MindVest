@@ -1,15 +1,22 @@
 {
   "symbol" : "META",
-  "lastRefreshed" : "2026-03-31",
+  "lastRefreshed" : "2026-04-01",
   "outputSize" : "Compact",
   "timeZone" : "US/Eastern",
   "prices" : [ {
+    "date" : "2026-04-01",
+    "open" : 580.13,
+    "high" : 592.5465,
+    "low" : 573.82,
+    "close" : 579.23,
+    "volume" : 23608128
+  }, {
     "date" : "2026-03-31",
     "open" : 549.98,
     "high" : 573.69,
     "low" : 546.77,
     "close" : 572.13,
-    "volume" : 32215787
+    "volume" : 32898272
   }, {
     "date" : "2026-03-30",
     "open" : 536.38,

@@ -1,15 +1,22 @@
 {
   "symbol" : "SPY",
-  "lastRefreshed" : "2026-03-31",
+  "lastRefreshed" : "2026-04-01",
   "outputSize" : "Compact",
   "timeZone" : "US/Eastern",
   "prices" : [ {
+    "date" : "2026-04-01",
+    "open" : 653.9,
+    "high" : 658.52,
+    "low" : 653.0,
+    "close" : 655.24,
+    "volume" : 95382970
+  }, {
     "date" : "2026-03-31",
     "open" : 638.94,
     "high" : 651.54,
     "low" : 637.98,
     "close" : 650.34,
-    "volume" : 145533744
+    "volume" : 152534102
   }, {
     "date" : "2026-03-30",
     "open" : 640.11,
