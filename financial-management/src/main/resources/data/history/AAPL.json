@@ -1,15 +1,22 @@
 {
   "symbol" : "AAPL",
-  "lastRefreshed" : "2026-03-31",
+  "lastRefreshed" : "2026-04-01",
   "outputSize" : "Compact",
   "timeZone" : "US/Eastern",
   "prices" : [ {
+    "date" : "2026-04-01",
+    "open" : 254.08,
+    "high" : 256.18,
+    "low" : 253.33,
+    "close" : 255.63,
+    "volume" : 40059432
+  }, {
     "date" : "2026-03-31",
     "open" : 247.91,
     "high" : 255.48,
     "low" : 247.101,
     "close" : 253.79,
-    "volume" : 48364108
+    "volume" : 49598091
   }, {
     "date" : "2026-03-30",
     "open" : 250.07,
@@ -696,12 +703,13 @@
     "low" : 267.89,
     "close" : 269.77,
     "volume" : 51204045
-  }, {
-    "date" : "2025-11-05",
-    "open" : 268.61,
-    "high" : 271.7,
-    "low" : 266.93,
-    "close" : 270.14,
-    "volume" : 42586288
-  } ]
+  },
+    {
+      "date" : "2025-11-05",
+      "open" : 268.61,
+      "high" : 271.7,
+      "low" : 266.93,
+      "close" : 270.14,
+      "volume" : 42586288
+    }]
 }

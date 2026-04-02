@@ -1,15 +1,22 @@
 {
   "symbol" : "AMZN",
-  "lastRefreshed" : "2026-03-31",
+  "lastRefreshed" : "2026-04-01",
   "outputSize" : "Compact",
   "timeZone" : "US/Eastern",
   "prices" : [ {
+    "date" : "2026-04-01",
+    "open" : 210.435,
+    "high" : 213.58,
+    "low" : 208.19,
+    "close" : 210.57,
+    "volume" : 45955395
+  }, {
     "date" : "2026-03-31",
     "open" : 204.845,
     "high" : 210.28,
     "low" : 204.14,
     "close" : 208.27,
-    "volume" : 55625819
+    "volume" : 58470078
   }, {
     "date" : "2026-03-30",
     "open" : 201.48,

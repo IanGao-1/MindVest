@@ -1,15 +1,22 @@
 {
   "symbol" : "QQQ",
-  "lastRefreshed" : "2026-03-31",
+  "lastRefreshed" : "2026-04-01",
   "outputSize" : "Compact",
   "timeZone" : "US/Eastern",
   "prices" : [ {
+    "date" : "2026-04-01",
+    "open" : 581.48,
+    "high" : 587.739,
+    "low" : 580.42,
+    "close" : 584.31,
+    "volume" : 79435132
+  }, {
     "date" : "2026-03-31",
     "open" : 564.29,
     "high" : 578.64,
     "low" : 564.21,
     "close" : 577.18,
-    "volume" : 94015562
+    "volume" : 95877997
   }, {
     "date" : "2026-03-30",
     "open" : 567.38,
@@ -703,5 +710,5 @@
     "low" : 617.21,
     "close" : 623.28,
     "volume" : 47829376
-  } ]
+  }  ]
 }

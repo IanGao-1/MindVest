@@ -6,8 +6,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -16,15 +19,13 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 public class AlphaVintage {
 
     private static final String API_KEY = "6ZJDKZ62YQCQMTX5";
-    private static final String DATA_DIR = "data/history";
+    private static final String DATA_DIR = "/Users/yijian/Desktop/MindVest/financial-management/src/main/resources/data/history";
 
     public static void main(String[] args) throws Exception {
 //        List<String> symbols = List.of("AAPL",
 //                "TSLA", "MSFT", "AMZN", "QQQ", "BND", "GLD", "VNQ");
-//        List<String> symbols = List.of("C",
-//                "META", "NVDA", "SPY", "VOO", "TLT", "GLD", "SLV");
-        List<String> symbols = List.of("USD",
-                "GBP", "CNY");
+        List<String> symbols = List.of("C",
+                "META", "NVDA", "SPY", "VOO", "TLT", "GLD", "SLV","GBP");
         for (String symbol : symbols) {
             downloadAndSaveDailyHistory(symbol);
             Thread.sleep(15000);
@@ -112,21 +113,44 @@ public class AlphaVintage {
         historyFile.timeZone = meta != null && meta.has("5. Time Zone")
                 ? meta.get("5. Time Zone").asText()
                 : "";
-        historyFile.prices = prices;
 
         Path directory = Paths.get(DATA_DIR);
         Files.createDirectories(directory);
 
         Path outputPath = directory.resolve(symbol + ".json");
+        historyFile.prices = mergeWithExistingHistory(outputPath, prices, mapper);
         mapper.writeValue(outputPath.toFile(), historyFile);
 
         System.out.println("Saved to: " + outputPath.toAbsolutePath());
-        System.out.println("Records: " + prices.size());
+        System.out.println("Records: " + historyFile.prices.size());
 
-        if (!prices.isEmpty()) {
-            DailyPrice latest = prices.get(0);
+        if (!historyFile.prices.isEmpty()) {
+            DailyPrice latest = historyFile.prices.get(0);
             System.out.println("Latest close: " + latest.close + " on " + latest.date);
         }
+    }
+
+    private static List<DailyPrice> mergeWithExistingHistory(Path outputPath, List<DailyPrice> latestPrices, ObjectMapper mapper)
+            throws Exception {
+        Map<String, DailyPrice> mergedByDate = new LinkedHashMap<>();
+
+        for (DailyPrice latestPrice : latestPrices) {
+            mergedByDate.put(latestPrice.date, latestPrice);
+        }
+
+        if (Files.exists(outputPath)) {
+            LocalHistoryFile existingHistory = mapper.readValue(outputPath.toFile(), LocalHistoryFile.class);
+            if (existingHistory != null && existingHistory.prices != null) {
+                for (DailyPrice existingPrice : existingHistory.prices) {
+                    // Keep older local dates such as 2025-11-05 when the compact API no longer returns them.
+                    mergedByDate.putIfAbsent(existingPrice.date, existingPrice);
+                }
+            }
+        }
+
+        return mergedByDate.values().stream()
+                .sorted(Comparator.comparing((DailyPrice price) -> price.date).reversed())
+                .toList();
     }
 
     public static class DailyPrice {

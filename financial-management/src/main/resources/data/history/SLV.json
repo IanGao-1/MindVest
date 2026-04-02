@@ -1,15 +1,22 @@
 {
   "symbol" : "SLV",
-  "lastRefreshed" : "2026-03-31",
+  "lastRefreshed" : "2026-04-01",
   "outputSize" : "Compact",
   "timeZone" : "US/Eastern",
   "prices" : [ {
+    "date" : "2026-04-01",
+    "open" : 67.96,
+    "high" : 68.905,
+    "low" : 67.375,
+    "close" : 68.14,
+    "volume" : 37868129
+  }, {
     "date" : "2026-03-31",
     "open" : 65.84,
     "high" : 68.2,
     "low" : 65.69,
     "close" : 68.14,
-    "volume" : 40790956
+    "volume" : 42141649
   }, {
     "date" : "2026-03-30",
     "open" : 64.46,

@@ -1,15 +1,22 @@
 {
   "symbol" : "BND",
-  "lastRefreshed" : "2026-03-31",
+  "lastRefreshed" : "2026-04-01",
   "outputSize" : "Compact",
   "timeZone" : "US/Eastern",
   "prices" : [ {
+    "date" : "2026-04-01",
+    "open" : 73.425,
+    "high" : 73.56,
+    "low" : 73.385,
+    "close" : 73.42,
+    "volume" : 9624794
+  }, {
     "date" : "2026-03-31",
     "open" : 73.665,
     "high" : 73.78,
     "low" : 73.5701,
     "close" : 73.64,
-    "volume" : 10944605
+    "volume" : 10948304
   }, {
     "date" : "2026-03-30",
     "open" : 73.48,
