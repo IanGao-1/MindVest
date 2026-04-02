@@ -336,7 +336,9 @@
                   </div>
                   <div class="activity-cell">
                     <span>Type</span>
-                    <strong>{{ transaction.transactionType }}</strong>
+                    <strong :class="transaction.transactionType === 'BUY' ? 'text-rise' : 'text-fall'">
+                      {{ transaction.transactionType }}
+                    </strong>
                   </div>
                   <div class="activity-cell">
                     <span>Ticker</span>
